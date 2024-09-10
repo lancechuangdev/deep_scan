@@ -1,0 +1,10 @@
+Source: deep-scan
+Section: base
+Priority: optional
+Maintainer: Liang Zhuang <bzhuangliang@gmail.com>
+Standards-Version: 4.5.1
+
+Package: deep-scan
+Architecture: amd64
+Depends: libgtk-3-dev, libsigc++-2.0-dev, libglibmm-2.4-dev, libcairomm-1.0-dev, libpangomm-1.4-dev, libatkmm-1.6-dev, libgtkmm-3.0-dev (>= 3.24.0)
+Description: A tool for deep scanning using MVS SDK.

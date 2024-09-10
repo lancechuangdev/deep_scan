@@ -10,7 +10,9 @@ inc_dir = join_paths(mvcam_runenv, '../include')
 lib_dir = join_paths(mvcam_runenv, '64')
 
 executable('ds', 
-    'main.cpp', 'mainwindow.cpp', 
+    ['main.cpp', 'mainwindow.cpp'],
+    install: true,
+    install_dir: join_paths(get_option('prefix'), 'bin', 'deep-scan'),
     dependencies: gtkmm_dep,
     include_directories: inc_dir,
     link_args: [
@@ -18,4 +20,10 @@ executable('ds',
         '-L' + lib_dir,
         '-lMvCameraControl'
     ]
+)
+
+# Install data files
+install_data(
+    'ui.glade', 
+    install_dir: join_paths(get_option('prefix'), 'share', 'deep-scan')
 )

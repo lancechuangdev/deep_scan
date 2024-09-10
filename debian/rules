@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	meson setup builddir --prefix=/usr/local
+
+override_dh_auto_build:
+	ninja -C builddir
+
+override_dh_auto_install:
+	DESTDIR=$(CURDIR)/debian/deep-scan ninja -C builddir install
+
+override_dh_usrlocal:
+# skip running dh_usrlocal
