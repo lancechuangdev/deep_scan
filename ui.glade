@@ -162,7 +162,7 @@
                     <property name="halign">start</property>
                     <property name="margin-top">10</property>
                     <property name="margin-bottom">10</property>
-                    <property name="label" translatable="yes">Capture Images</property>
+                    <property name="label" translatable="yes">Process Images</property>
                   </object>
                   <packing>
                     <property name="left-attach">0</property>

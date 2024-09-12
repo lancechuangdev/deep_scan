@@ -8,6 +8,7 @@
 #include <gtkmm/builder.h>
 #include "MvCameraControl.h"
 #include "camcols.h"
+#include "framequeue.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -58,6 +59,8 @@ private:
     double m_captureInterval;
     sigc::connection m_captureTimeoutConnection;
     int m_captureElapsedTime; // in milliseconds
+    FrameQueue m_frameQueue;
+    std::atomic<bool> m_running;
     void populateDeviceSettings();
     void clearDeviceSettings();
 };

@@ -1,7 +1,13 @@
 #include "mainwindow.h"
 
 MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder)
-    : Gtk::Window(obj), m_builder(refBuilder), m_captureDuration(5), m_captureInterval(0), m_lastCaptureTimestamp(0)
+    : Gtk::Window(obj),
+      m_builder(refBuilder),
+      m_captureDuration(5),
+      m_captureInterval(0),
+      m_lastCaptureTimestamp(0),
+      m_frameQueue(10),
+      m_running(false)
 {
     // Set the window title
     Gtk::Window *root;
@@ -274,37 +280,18 @@ void MainWindow::onConnectClicked()
     // Register image callback
     auto imageCaptureCallback = [](unsigned char *pData, MV_FRAME_OUT_INFO_EX *pFrameInfo, void *pUser)
     {
-        // Cast pUser to MainWindow*
-        MainWindow *pThis = static_cast<MainWindow *>(pUser);
-
-        void *deviceHandle = pThis->m_selectedCam;
-
-        // Ensure that the folder path ends with a slash
-        std::string folderPath = pThis->m_imageFolderPath;
-        if (!folderPath.empty() && folderPath.back() != '/')
-        {
-            folderPath += '/';
-        }
-
-        // Calculate the elapsed time (in milliseconds) since the last capture using host timestamps
-        double elapsed = static_cast<double>(pFrameInfo->nHostTimeStamp - pThis->m_lastCaptureTimestamp);
-
         if (pFrameInfo)
         {
             std::cout << "GetOneFrame, nDevTimeStampHigh: " << pFrameInfo->nDevTimeStampHigh
                       << ", nDevTimeStampLow: " << pFrameInfo->nDevTimeStampLow
                       << ", nHostTimeStamp: " << pFrameInfo->nHostTimeStamp
-                      << ", elapsed: " << elapsed << std::endl;
+                      << std::endl;
         }
 
-        if (elapsed >= pThis->m_captureInterval)
-        {
-            // Update the last capture timestamp
-            pThis->m_lastCaptureTimestamp = pFrameInfo->nHostTimeStamp;
+        // Cast pUser to MainWindow*
+        MainWindow *pThis = static_cast<MainWindow *>(pUser);
 
-            // Save image in a separate thread
-            std::async(std::launch::async, saveImageAsync, pData, pFrameInfo, deviceHandle, folderPath);
-        }
+        pThis->m_frameQueue.enqueue(pData, pFrameInfo);
     };
 
     nRet = MV_CC_RegisterImageCallBackEx(m_selectedCam, imageCaptureCallback, this);
@@ -421,6 +408,8 @@ void MainWindow::clearDeviceSettings()
 
 void MainWindow::onStartClicked()
 {
+    m_running = true;
+
     if (m_pickerFcb)
     {
         m_imageFolderPath = m_pickerFcb->get_filename();
@@ -475,6 +464,8 @@ void MainWindow::onStartClicked()
 
             if (m_captureElapsedTime >= duration)
             {
+                m_running = false;
+
                 // Time's up, stop the capturing and reset the progress bar
                 int nRet = MV_CC_StopGrabbing(m_selectedCam);
                 if (nRet != MV_OK)
@@ -491,6 +482,57 @@ void MainWindow::onStartClicked()
         100 // Update every 100 milliseconds
     );
 
+    // Processing image in a separate thread
+    auto processFrameAsync = [this]()
+    {
+        FrameData frameData(nullptr, nullptr); // Initialize FrameData with null pointers
+
+        while (m_running)
+        {
+            if (m_frameQueue.dequeue(frameData))
+            {
+                // Process the dequeued data
+                
+                // Calculate the elapsed time (in milliseconds) since the last capture using host timestamps
+                double elapsed = static_cast<double>(frameData.pFrameMetadata->nHostTimeStamp - m_lastCaptureTimestamp);
+
+                std::cout << "Dequeued frame with resolution: " 
+                          << frameData.pFrameMetadata->nWidth << "x"
+                          << frameData.pFrameMetadata->nHeight 
+                          << "HostTimeStamp: " << frameData.pFrameMetadata->nHostTimeStamp
+                          << ", elapsed: " << elapsed << std::endl;
+
+                if (elapsed >= m_captureInterval)
+                {
+                    // Update the last capture timestamp
+                    m_lastCaptureTimestamp = frameData.pFrameMetadata->nHostTimeStamp;
+
+                    // Ensure that the folder path ends with a slash
+                    std::string folderPath = m_imageFolderPath;
+                    if (!folderPath.empty() && folderPath.back() != '/')
+                    {
+                        folderPath += '/';
+                    }
+
+                    // Save image async
+                    std::async(std::launch::async, saveImageAsync, frameData.pData, frameData.pFrameMetadata, m_selectedCam, folderPath);
+                }
+            }
+            else
+            {
+                std::cout << "No frame in the queue" << std::endl;
+            }
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Prevent CPU overuse
+        }
+    };
+
+    // Create and start the thread
+    std::thread processingThread(processFrameAsync);
+
+    // Detach the thread to let it run in the background and won't be able to join later
+    processingThread.detach();
+
     // Start grab images
     int nRet = MV_CC_StartGrabbing(m_selectedCam);
     if (nRet != MV_OK)
@@ -501,6 +543,8 @@ void MainWindow::onStartClicked()
 
 void MainWindow::onStopClicked()
 {
+    m_running = false;
+
     // Stop the timeout
     if (m_captureTimeoutConnection.connected())
     {
