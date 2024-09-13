@@ -201,7 +201,7 @@ void MainWindow::onDiscoverClicked()
 void saveImageAsync(FrameData frameData, void *deviceHandle, std::string folderPath)
 {
     auto pData = frameData.pData;
-    auto pMetadata = frameData.pFrameMetadata;
+    auto pMetadata = frameData.pMetadata;
 
     MV_SAVE_IMG_TO_FILE_PARAM stSaveFileParam;
     memset(&stSaveFileParam, 0, sizeof(MV_SAVE_IMG_TO_FILE_PARAM));
@@ -497,18 +497,18 @@ void MainWindow::onStartClicked()
                 // Process the dequeued data
                 
                 // Calculate the elapsed time (in milliseconds) since the last capture using host timestamps
-                double elapsed = static_cast<double>(frameData.pFrameMetadata->nHostTimeStamp - m_lastCaptureTimestamp);
+                double elapsed = static_cast<double>(frameData.pMetadata->nHostTimeStamp - m_lastCaptureTimestamp);
 
                 std::cout << "Dequeued frame with resolution: " 
-                          << frameData.pFrameMetadata->nWidth << "x"
-                          << frameData.pFrameMetadata->nHeight 
-                          << "HostTimeStamp: " << frameData.pFrameMetadata->nHostTimeStamp
+                          << frameData.pMetadata->nWidth << "x"
+                          << frameData.pMetadata->nHeight 
+                          << "HostTimeStamp: " << frameData.pMetadata->nHostTimeStamp
                           << ", elapsed: " << elapsed << std::endl;
 
                 if (elapsed >= m_captureInterval)
                 {
                     // Update the last capture timestamp
-                    m_lastCaptureTimestamp = frameData.pFrameMetadata->nHostTimeStamp;
+                    m_lastCaptureTimestamp = frameData.pMetadata->nHostTimeStamp;
 
                     // Ensure that the folder path ends with a slash
                     std::string folderPath = m_imageFolderPath;
@@ -524,9 +524,8 @@ void MainWindow::onStartClicked()
             else
             {
                 std::cout << "No frame in the queue" << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Prevent CPU overuse
             }
-            
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Prevent CPU overuse
         }
     };
 

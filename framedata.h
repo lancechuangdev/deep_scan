@@ -5,14 +5,14 @@
 
 struct FrameData {
     unsigned char* pData;
-    MV_FRAME_OUT_INFO_EX* pFrameMetadata;
+    MV_FRAME_OUT_INFO_EX* pMetadata;
 
     // Default constructor
-    FrameData() : pData(nullptr), pFrameMetadata(nullptr) {}
+    FrameData() : pData(nullptr), pMetadata(nullptr) {}
 
     // Constructor
     FrameData(unsigned char* data, MV_FRAME_OUT_INFO_EX* metadata)
-        : pData(data), pFrameMetadata(metadata) {}
+        : pData(data), pMetadata(metadata) {}
 };
 
 #endif // FRAMEDATA_H
