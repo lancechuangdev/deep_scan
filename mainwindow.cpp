@@ -6,7 +6,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
       m_captureDuration(5),
       m_captureInterval(0),
       m_lastCaptureTimestamp(0),
-      m_frameQueue(10),
+      m_frameQueue(20),
       m_running(false)
 {
     // Set the window title
@@ -198,30 +198,6 @@ void MainWindow::onDiscoverClicked()
     } while (false);
 }
 
-void saveImageAsync(FrameData frameData, void *deviceHandle, std::string folderPath)
-{
-    auto pData = frameData.pData;
-    auto pMetadata = frameData.pMetadata;
-
-    MV_SAVE_IMG_TO_FILE_PARAM stSaveFileParam;
-    memset(&stSaveFileParam, 0, sizeof(MV_SAVE_IMG_TO_FILE_PARAM));
-
-    stSaveFileParam.enImageType = MV_Image_Bmp;
-    stSaveFileParam.enPixelType = pMetadata->enPixelType;
-    stSaveFileParam.nWidth = pMetadata->nWidth;
-    stSaveFileParam.nHeight = pMetadata->nHeight;
-    stSaveFileParam.nDataLen = pMetadata->nFrameLen;
-    stSaveFileParam.pData = pData;
-
-    sprintf(stSaveFileParam.pImagePath, "%sImage_w%d_h%d_fn%d.bmp", folderPath.c_str(), stSaveFileParam.nWidth, stSaveFileParam.nHeight, pMetadata->nFrameNum);
-
-    int nRet = MV_CC_SaveImageToFile(deviceHandle, &stSaveFileParam);
-    if (nRet != MV_OK)
-    {
-        std::cout << "Failed to save image to file. Error code: " << nRet << std::endl;
-    }
-}
-
 void MainWindow::onConnectClicked()
 {
     int nIndex = getSelectedCamIndex(m_camTreeView, m_camListStore);
@@ -272,12 +248,18 @@ void MainWindow::onConnectClicked()
         }
     }
 
-    // Turn trigger mode off
-    nRet = MV_CC_SetEnumValue(m_selectedCam, "TriggerMode", 0);
-    if (nRet != MV_OK)
+    // Enable trigger mode
+    nRet = MV_CC_SetEnumValue(m_selectedCam, "TriggerMode", 1);
+    if (MV_OK != nRet)
     {
-        std::cout << "MV_CC_SetTriggerMode fail. Error code: " << nRet << std::endl;
-        return;
+        std::cout << "MV_CC_SetTriggerMode fail! Error code: " << nRet << std::endl;
+    }
+
+    // Set trigger source
+    nRet = MV_CC_SetEnumValue(m_selectedCam, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
+    if (MV_OK != nRet)
+    {
+        std::cout << "MV_CC_SetTriggerSource fail! Error code:" << nRet << std::endl;
     }
 
     // Register image callback
@@ -409,6 +391,30 @@ void MainWindow::clearDeviceSettings()
     }
 }
 
+void saveImageAsync(FrameData frameData, void *deviceHandle, std::string folderPath)
+{
+    auto pData = frameData.pData;
+    auto pMetadata = frameData.pMetadata;
+
+    MV_SAVE_IMG_TO_FILE_PARAM stSaveFileParam;
+    memset(&stSaveFileParam, 0, sizeof(MV_SAVE_IMG_TO_FILE_PARAM));
+
+    stSaveFileParam.enImageType = MV_Image_Bmp;
+    stSaveFileParam.enPixelType = pMetadata->enPixelType;
+    stSaveFileParam.nWidth = pMetadata->nWidth;
+    stSaveFileParam.nHeight = pMetadata->nHeight;
+    stSaveFileParam.nDataLen = pMetadata->nFrameLen;
+    stSaveFileParam.pData = pData;
+
+    sprintf(stSaveFileParam.pImagePath, "%sImage_w%d_h%d_fn%d.bmp", folderPath.c_str(), stSaveFileParam.nWidth, stSaveFileParam.nHeight, pMetadata->nFrameNum);
+
+    int nRet = MV_CC_SaveImageToFile(deviceHandle, &stSaveFileParam);
+    if (nRet != MV_OK)
+    {
+        std::cout << "Failed to save image to file. Error code: " << nRet << std::endl;
+    }
+}
+
 void MainWindow::onStartClicked()
 {
     m_running = true;
@@ -485,41 +491,24 @@ void MainWindow::onStartClicked()
         100 // Update every 100 milliseconds
     );
 
-    // Processing image in a separate thread
+    // Process images in a separate thread
     auto processFrameAsync = [this]()
     {
+        // Ensure that the folder path ends with a slash
+        std::string folderPath = m_imageFolderPath;
+        if (!folderPath.empty() && folderPath.back() != '/')
+        {
+            folderPath += '/';
+        }
+
         FrameData frameData(nullptr, nullptr); // Initialize FrameData with null pointers
 
         while (m_running)
         {
             if (m_frameQueue.dequeue(frameData))
             {
-                // Process the dequeued data
-                
-                // Calculate the elapsed time (in milliseconds) since the last capture using host timestamps
-                double elapsed = static_cast<double>(frameData.pMetadata->nHostTimeStamp - m_lastCaptureTimestamp);
-
-                std::cout << "Dequeued frame with resolution: " 
-                          << frameData.pMetadata->nWidth << "x"
-                          << frameData.pMetadata->nHeight 
-                          << "HostTimeStamp: " << frameData.pMetadata->nHostTimeStamp
-                          << ", elapsed: " << elapsed << std::endl;
-
-                if (elapsed >= m_captureInterval)
-                {
-                    // Update the last capture timestamp
-                    m_lastCaptureTimestamp = frameData.pMetadata->nHostTimeStamp;
-
-                    // Ensure that the folder path ends with a slash
-                    std::string folderPath = m_imageFolderPath;
-                    if (!folderPath.empty() && folderPath.back() != '/')
-                    {
-                        folderPath += '/';
-                    }
-
-                    // Save image async
-                    std::async(std::launch::async, saveImageAsync, frameData, m_selectedCam, folderPath);
-                }
+                // Save image async
+                std::async(std::launch::async, saveImageAsync, frameData, m_selectedCam, folderPath);
             }
             else
             {
@@ -529,11 +518,41 @@ void MainWindow::onStartClicked()
         }
     };
 
-    // Create and start the thread
+    // Create and start the frame processing thread
     std::thread processingThread(processFrameAsync);
 
     // Detach the thread to let it run in the background and won't be able to join later
     processingThread.detach();
+
+    // Capture images in a separate thread
+    auto captureFrameAsync = [this]()
+    {
+        while (m_running)
+        {
+            auto currentTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            double elapsed = currentTimeInMs - m_lastCaptureTimestamp;
+
+            if (elapsed >= m_captureInterval)
+            {
+                std::cout << "Start to capture frames at time: " << currentTimeInMs << std::endl;
+                m_lastCaptureTimestamp = currentTimeInMs;
+
+                int nRet = MV_CC_SetCommandValue(m_selectedCam, "TriggerSoftware");
+                if(MV_OK != nRet)
+                {
+                    std::cout << "Failed to capture frames via TriggerSoftware. Error code: " << nRet << std::endl;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Prevent CPU overuse
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));  // Prevent CPU overuse
+        }
+    };
+
+    // Create and start the frame acquisition thread
+    std::thread capturingThread(captureFrameAsync);
+
+    // Detach the thread to let it run in the background and won't be able to join later
+    capturingThread.detach();
 
     // Start grab images
     int nRet = MV_CC_StartGrabbing(m_selectedCam);
