@@ -53,5 +53,10 @@ int main(int argc, char **argv)
     builder->get_widget_derived("root", wnd);
 
     // Shows the window and returns when it is closed.
-    return app->run(*wnd);
+    nRet = app->run(*wnd);
+
+    // Ensure MV_CC_Finalize is called after the window is closed
+    MV_CC_Finalize();
+
+    return nRet;
 }
