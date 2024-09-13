@@ -11,7 +11,7 @@ public:
     FrameQueue(size_t capacity);
 
     // Enqueue data into the queue
-    void enqueue(unsigned char* pData, MV_FRAME_OUT_INFO_EX* pFrameInfo);
+    void enqueue(FrameData frameData);
 
     // Dequeue data from the queue
     bool dequeue(FrameData& outFrame);

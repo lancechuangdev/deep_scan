@@ -6,7 +6,7 @@ FrameQueue::FrameQueue(size_t cap) : capacity(cap), head(0), tail(0), size(0) {
 }
 
 // Enqueue operation
-void FrameQueue::enqueue(unsigned char* pData, MV_FRAME_OUT_INFO_EX* pMetadata) {
+void FrameQueue::enqueue(FrameData frameData) {
     std::lock_guard<std::mutex> lock(mtx);  // Lock for thread safety
 
     // Check if the queue is full, discard the oldest element if necessary
@@ -16,7 +16,7 @@ void FrameQueue::enqueue(unsigned char* pData, MV_FRAME_OUT_INFO_EX* pMetadata) 
     }
 
     // Store the data in the queue
-    buffer[tail] = FrameData(pData, pMetadata);
+    buffer[tail] = frameData;
     tail = (tail + 1) % capacity;
     ++size;
 }

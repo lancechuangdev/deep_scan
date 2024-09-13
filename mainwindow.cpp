@@ -198,19 +198,22 @@ void MainWindow::onDiscoverClicked()
     } while (false);
 }
 
-void saveImageAsync(unsigned char *pData, MV_FRAME_OUT_INFO_EX *pFrameInfo, void *deviceHandle, std::string folderPath)
+void saveImageAsync(FrameData frameData, void *deviceHandle, std::string folderPath)
 {
+    auto pData = frameData.pData;
+    auto pMetadata = frameData.pFrameMetadata;
+
     MV_SAVE_IMG_TO_FILE_PARAM stSaveFileParam;
     memset(&stSaveFileParam, 0, sizeof(MV_SAVE_IMG_TO_FILE_PARAM));
 
     stSaveFileParam.enImageType = MV_Image_Bmp;
-    stSaveFileParam.enPixelType = pFrameInfo->enPixelType;
-    stSaveFileParam.nWidth = pFrameInfo->nWidth;
-    stSaveFileParam.nHeight = pFrameInfo->nHeight;
-    stSaveFileParam.nDataLen = pFrameInfo->nFrameLen;
+    stSaveFileParam.enPixelType = pMetadata->enPixelType;
+    stSaveFileParam.nWidth = pMetadata->nWidth;
+    stSaveFileParam.nHeight = pMetadata->nHeight;
+    stSaveFileParam.nDataLen = pMetadata->nFrameLen;
     stSaveFileParam.pData = pData;
 
-    sprintf(stSaveFileParam.pImagePath, "%sImage_w%d_h%d_fn%d.bmp", folderPath.c_str(), stSaveFileParam.nWidth, stSaveFileParam.nHeight, pFrameInfo->nFrameNum);
+    sprintf(stSaveFileParam.pImagePath, "%sImage_w%d_h%d_fn%d.bmp", folderPath.c_str(), stSaveFileParam.nWidth, stSaveFileParam.nHeight, pMetadata->nFrameNum);
 
     int nRet = MV_CC_SaveImageToFile(deviceHandle, &stSaveFileParam);
     if (nRet != MV_OK)
@@ -291,7 +294,7 @@ void MainWindow::onConnectClicked()
         // Cast pUser to MainWindow*
         MainWindow *pThis = static_cast<MainWindow *>(pUser);
 
-        pThis->m_frameQueue.enqueue(pData, pFrameInfo);
+        pThis->m_frameQueue.enqueue(FrameData(pData, pFrameInfo));
     };
 
     nRet = MV_CC_RegisterImageCallBackEx(m_selectedCam, imageCaptureCallback, this);
@@ -515,7 +518,7 @@ void MainWindow::onStartClicked()
                     }
 
                     // Save image async
-                    std::async(std::launch::async, saveImageAsync, frameData.pData, frameData.pFrameMetadata, m_selectedCam, folderPath);
+                    std::async(std::launch::async, saveImageAsync, frameData, m_selectedCam, folderPath);
                 }
             }
             else
