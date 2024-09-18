@@ -43,6 +43,16 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
     if (m_drawingArea)
     {
         m_drawingArea->signal_draw().connect(sigc::mem_fun(*this, &DrawWindow::onDrawingAreaDraw));
+
+        // Connect mouse scroll event for zooming
+        m_drawingArea->add_events(Gdk::SCROLL_MASK);
+        m_drawingArea->signal_scroll_event().connect(sigc::mem_fun(*this, &DrawWindow::onScrollEvent));
+
+        // Connect mouse press and motion events for panning
+        m_drawingArea->add_events(Gdk::BUTTON_PRESS_MASK | Gdk::BUTTON_RELEASE_MASK | Gdk::POINTER_MOTION_MASK);
+        m_drawingArea->signal_button_press_event().connect(sigc::mem_fun(*this, &DrawWindow::onButtonPressEvent));
+        m_drawingArea->signal_button_release_event().connect(sigc::mem_fun(*this, &DrawWindow::onButtonReleaseEvent));
+        m_drawingArea->signal_motion_notify_event().connect(sigc::mem_fun(*this, &DrawWindow::onMotionNotifyEvent));
     }
 }
 
@@ -69,7 +79,8 @@ void DrawWindow::setImageLabelingPath(const std::string &path)
     m_imageLabelingQueue = get_image_files_in_folder(path);
 }
 
-void DrawWindow::on_window_shown() {
+void DrawWindow::on_window_shown()
+{
     std::cout << "Window is shown!" << std::endl;
     // Load the first image buffer to drawing area
     if (!m_imageLabelingQueue.empty())
@@ -78,8 +89,10 @@ void DrawWindow::on_window_shown() {
     }
 }
 
-bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr) {
-    if (m_currentPixbuf) {
+bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr)
+{
+    if (m_currentPixbuf)
+    {
         // Get the dimensions of the pixbuf
         int width = m_currentPixbuf->get_width();
         int height = m_currentPixbuf->get_height();
@@ -87,11 +100,18 @@ bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr) {
         // Set the size of the drawing area if needed
         m_drawingArea->set_size_request(width, height);
 
-        // Draw the loaded pixbuf
+        // Apply zoom and pan transformations
+        cr->save();
+        cr->translate(m_offsetX, m_offsetY);   // Apply panning offset
+        cr->scale(m_zoomFactor, m_zoomFactor); // Apply zoom
+
+        // Draw the image
         Gdk::Cairo::set_source_pixbuf(cr, m_currentPixbuf, 0, 0);
-        cr->paint();  // Render the image
+        cr->paint();
+
+        cr->restore();
     }
-    return true;  // Return true to indicate the event has been handled
+    return true; // Return true to indicate the event has been handled
 }
 
 void DrawWindow::loadImageBuffer(const std::string &filename)
@@ -99,6 +119,11 @@ void DrawWindow::loadImageBuffer(const std::string &filename)
     try
     {
         m_currentPixbuf = Gdk::Pixbuf::create_from_file(filename);
+
+        // Reset zoom and pan when a new image is loaded
+        m_zoomFactor = 1.0;
+        m_offsetX = 0.0;
+        m_offsetY = 0.0;
 
         // Trigger a redraw of the drawing area
         m_drawingArea->queue_draw();
@@ -111,4 +136,72 @@ void DrawWindow::loadImageBuffer(const std::string &filename)
     {
         std::cerr << "Pixbuf Error: " << ex.what() << std::endl;
     }
+}
+
+// Handle mouse scroll for zooming
+bool DrawWindow::onScrollEvent(GdkEventScroll *scroll_event)
+{
+    const double zoomStep = 0.1;
+
+    if (scroll_event->direction == GDK_SCROLL_UP)
+    {
+        m_zoomFactor += zoomStep;
+    }
+    else if (scroll_event->direction == GDK_SCROLL_DOWN)
+    {
+        m_zoomFactor = std::max(zoomStep, m_zoomFactor - zoomStep);
+    }
+
+    // Trigger a redraw of the drawing area
+    m_drawingArea->queue_draw();
+
+    // Return true to indicate that the event has been handled
+    return true;
+}
+
+// Handle mouse press for starting panning
+bool DrawWindow::onButtonPressEvent(GdkEventButton *button_event)
+{
+    if (button_event->button == 1)
+    {
+        // Start dragging
+        m_isDragging = true;
+        m_dragStartX = button_event->x;
+        m_dragStartY = button_event->y;
+    }
+    return true;
+}
+
+// Handle mouse release to stop panning
+bool DrawWindow::onButtonReleaseEvent(GdkEventButton *button_event)
+{
+    if (button_event->button == 1)
+    {
+        // Stop dragging
+        m_isDragging = false;
+    }
+    return true;
+}
+
+// Handle mouse motion for panning
+bool DrawWindow::onMotionNotifyEvent(GdkEventMotion *motion_event)
+{
+    if (m_isDragging)
+    {
+        // Calculate the distance moved
+        double deltaX = motion_event->x - m_dragStartX;
+        double deltaY = motion_event->y - m_dragStartY;
+
+        // Update the panning offset
+        m_offsetX += deltaX;
+        m_offsetY += deltaY;
+
+        // Update the start position for the next motion event
+        m_dragStartX = motion_event->x;
+        m_dragStartY = motion_event->y;
+
+        // Trigger a redraw of the drawing area
+        m_drawingArea->queue_draw();
+    }
+    return true;
 }
