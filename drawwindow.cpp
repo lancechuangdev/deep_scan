@@ -85,7 +85,7 @@ bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr) {
         int height = m_currentPixbuf->get_height();
 
         // Set the size of the drawing area if needed
-        //m_drawingArea->set_size_request(width, height);
+        m_drawingArea->set_size_request(width, height);
 
         // Draw the loaded pixbuf
         Gdk::Cairo::set_source_pixbuf(cr, m_currentPixbuf, 0, 0);
