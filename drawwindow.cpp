@@ -44,15 +44,24 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
     {
         m_drawingArea->signal_draw().connect(sigc::mem_fun(*this, &DrawWindow::onDrawingAreaDraw));
 
-        // Connect mouse scroll event for zooming
+        // Connect mouse scroll event
         m_drawingArea->add_events(Gdk::SCROLL_MASK);
         m_drawingArea->signal_scroll_event().connect(sigc::mem_fun(*this, &DrawWindow::onScrollEvent));
 
-        // Connect mouse press and motion events for panning
+        // Connect mouse press and motion events
         m_drawingArea->add_events(Gdk::BUTTON_PRESS_MASK | Gdk::BUTTON_RELEASE_MASK | Gdk::POINTER_MOTION_MASK);
         m_drawingArea->signal_button_press_event().connect(sigc::mem_fun(*this, &DrawWindow::onButtonPressEvent));
         m_drawingArea->signal_button_release_event().connect(sigc::mem_fun(*this, &DrawWindow::onButtonReleaseEvent));
         m_drawingArea->signal_motion_notify_event().connect(sigc::mem_fun(*this, &DrawWindow::onMotionNotifyEvent));
+
+        // Connect key press events
+        m_drawingArea->add_events(Gdk::KEY_PRESS_MASK);
+    }
+
+    m_refGlade->get_widget("circle_brush_btn", m_circleBrushBtn);
+    if (m_circleBrushBtn)
+    {
+        m_circleBrushBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onCircleBrushClicked));
     }
 }
 
@@ -111,6 +120,10 @@ bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr)
 
         cr->restore();
     }
+
+    // Draw the brush cursor on top
+    drawBrushCursor(cr);
+
     return true; // Return true to indicate the event has been handled
 }
 
@@ -138,18 +151,67 @@ void DrawWindow::loadImageBuffer(const std::string &filename)
     }
 }
 
-// Handle mouse scroll for zooming
+void DrawWindow::onCircleBrushClicked()
+{
+    m_isDrawingMode = true;
+    m_showBrushCursor = true;
+}
+
+bool DrawWindow::on_key_press_event(GdkEventKey* key_event) {
+    if (key_event->keyval == GDK_KEY_Control_L || key_event->keyval == GDK_KEY_Control_R) {
+        m_ctrlPressed = true;
+    }
+    return Gtk::Window::on_key_press_event(key_event);
+}
+
+bool DrawWindow::on_key_release_event(GdkEventKey* key_event) {
+    if (key_event->keyval == GDK_KEY_Control_L || key_event->keyval == GDK_KEY_Control_R) {
+        m_ctrlPressed = false;
+    }
+    return Gtk::Window::on_key_release_event(key_event);
+}
+
+// Handle mouse scroll
 bool DrawWindow::onScrollEvent(GdkEventScroll *scroll_event)
 {
-    const double zoomStep = 0.1;
-
-    if (scroll_event->direction == GDK_SCROLL_UP)
+    if (m_isDrawingMode)
     {
-        m_zoomFactor += zoomStep;
+        if (m_ctrlPressed)
+        {
+            // Adjust alpha when Ctrl is pressed
+            if (scroll_event->direction == GDK_SCROLL_UP)
+            {
+                m_brushAlpha = std::min(m_brushAlpha + 0.1, 1.0); // Max alpha is 1.0
+            }
+            else if (scroll_event->direction == GDK_SCROLL_DOWN)
+            {
+                m_brushAlpha = std::max(m_brushAlpha - 0.1, 0.1); // Min alpha is 0.1
+            }
+        }
+        else
+        {
+            if (scroll_event->direction == GDK_SCROLL_UP)
+            {
+                m_brushRadius = std::min(m_brushRadius + 1.0, 100.0); // Cap at 100
+            }
+            else if (scroll_event->direction == GDK_SCROLL_DOWN)
+            {
+                m_brushRadius = std::max(m_brushRadius - 1.0, 5.0); // Minimum size is 5
+            }
+        }
     }
-    else if (scroll_event->direction == GDK_SCROLL_DOWN)
+    else
     {
-        m_zoomFactor = std::max(zoomStep, m_zoomFactor - zoomStep);
+        const double zoomStep = 0.1;
+
+        if (scroll_event->direction == GDK_SCROLL_UP)
+        {
+            m_zoomFactor += zoomStep;
+        }
+        else if (scroll_event->direction == GDK_SCROLL_DOWN)
+        {
+            m_zoomFactor = std::max(zoomStep, m_zoomFactor - zoomStep);
+        }
     }
 
     // Trigger a redraw of the drawing area
@@ -164,44 +226,88 @@ bool DrawWindow::onButtonPressEvent(GdkEventButton *button_event)
 {
     if (button_event->button == 1)
     {
-        // Start dragging
-        m_isDragging = true;
-        m_dragStartX = button_event->x;
-        m_dragStartY = button_event->y;
+        if (m_isDrawingMode)
+        {
+            // Start drawing
+            m_isDrawing = true;
+            m_showBrushCursor = false;
+        }
+        else
+        {
+            // Start dragging
+            m_isDragging = true;
+            m_dragStartX = button_event->x;
+            m_dragStartY = button_event->y;
+        }
     }
     return true;
 }
 
-// Handle mouse release to stop panning
+// Handle mouse release
 bool DrawWindow::onButtonReleaseEvent(GdkEventButton *button_event)
 {
     if (button_event->button == 1)
     {
-        // Stop dragging
-        m_isDragging = false;
+        if (m_isDrawingMode)
+        {
+            // Stop drawing
+            m_isDrawing = false;
+            m_showBrushCursor = true;
+        }
+        else
+        {
+            // Stop dragging
+            m_isDragging = false;
+        }
     }
     return true;
 }
 
-// Handle mouse motion for panning
+// Handle mouse motion
 bool DrawWindow::onMotionNotifyEvent(GdkEventMotion *motion_event)
 {
-    if (m_isDragging)
+    if (m_isDrawingMode)
     {
-        // Calculate the distance moved
-        double deltaX = motion_event->x - m_dragStartX;
-        double deltaY = motion_event->y - m_dragStartY;
+        m_brushX = motion_event->x;
+        m_brushY = motion_event->y;
 
-        // Update the panning offset
-        m_offsetX += deltaX;
-        m_offsetY += deltaY;
-
-        // Update the start position for the next motion event
-        m_dragStartX = motion_event->x;
-        m_dragStartY = motion_event->y;
-
-        // Trigger a redraw of the drawing area
-        m_drawingArea->queue_draw();
+        if (m_isDrawing)
+        {
+        }
+        else
+        {
+        }
     }
+    else
+    {
+        if (m_isDragging)
+        {
+            // Calculate the distance moved
+            double deltaX = motion_event->x - m_dragStartX;
+            double deltaY = motion_event->y - m_dragStartY;
+
+            // Update the panning offset
+            m_offsetX += deltaX;
+            m_offsetY += deltaY;
+
+            // Update the start position for the next motion event
+            m_dragStartX = motion_event->x;
+            m_dragStartY = motion_event->y;
+        }
+    }
+
+    // Trigger a redraw of the drawing area
+    m_drawingArea->queue_draw();
+
     return true;
+}
+
+void DrawWindow::drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr)
+{
+    if (m_showBrushCursor)
+    {
+        cr->set_source_rgba(255, 255, 255, m_brushAlpha); // Draw the brush outline in red
+        cr->arc(m_brushX, m_brushY, m_brushRadius, 0, 2 * M_PI);
+        cr->fill();
+    }
 }

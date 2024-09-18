@@ -4,24 +4,30 @@
 #include <iostream>
 #include <gtkmm.h>
 
-class DrawWindow : public Gtk::Window {
+class DrawWindow : public Gtk::Window
+{
 public:
-    DrawWindow(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builder>& refGlade);
-    static DrawWindow* create(const std::string &gladeFailePath);
+    DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade);
+    static DrawWindow *create(const std::string &gladeFailePath);
     void setImageLabelingPath(const std::string &path);
 
 protected:
     Gtk::DrawingArea *m_drawingArea;
-
+    Gtk::Button *m_circleBrushBtn;
     void on_window_shown();
-    bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr);
-    void loadImageBuffer(const std::string& filename); // Load the image buffer to the drawing area
+    bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr);
+    void loadImageBuffer(const std::string &filename); // Load the image buffer to the drawing area
+    void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
+    void onCircleBrushClicked();
 
     // Mouse event
-    bool onScrollEvent(GdkEventScroll* scroll_event);
-    bool onButtonPressEvent(GdkEventButton* button_event);
-    bool onButtonReleaseEvent(GdkEventButton* button_event);
-    bool onMotionNotifyEvent(GdkEventMotion* motion_event);
+    bool onScrollEvent(GdkEventScroll *scroll_event);
+    bool onButtonPressEvent(GdkEventButton *button_event);
+    bool onButtonReleaseEvent(GdkEventButton *button_event);
+    bool onMotionNotifyEvent(GdkEventMotion *motion_event);
+
+    bool on_key_press_event(GdkEventKey *key_event) override;
+    bool on_key_release_event(GdkEventKey *key_event) override;
 
 private:
     Glib::RefPtr<Gtk::Builder> m_refGlade;
@@ -29,12 +35,23 @@ private:
     std::vector<std::string> m_imageLabelingQueue;
     Glib::RefPtr<Gdk::Pixbuf> m_currentPixbuf; // Store the currently loaded pixbuf
 
-    double m_zoomFactor = 1.0;    // Zoom factor (1.0 = no zoom)
-    double m_offsetX = 0.0;       // Horizontal pan offset
-    double m_offsetY = 0.0;       // Vertical pan offset
-    double m_dragStartX = 0.0;    // Mouse drag start X
-    double m_dragStartY = 0.0;    // Mouse drag start Y
-    bool m_isDragging = false;    // Track whether the user is dragging
+    double m_zoomFactor = 1.0; // Zoom factor (1.0 = no zoom)
+    double m_offsetX = 0.0;    // Horizontal pan offset
+    double m_offsetY = 0.0;    // Vertical pan offset
+    double m_dragStartX = 0.0; // Mouse drag start X
+    double m_dragStartY = 0.0; // Mouse drag start Y
+
+    bool m_isDrawingMode = false;   // Track whether it is drawing mode
+    bool m_isDragging = false;      // Track whether the user is dragging
+    bool m_isDrawing = false;       // Track whether the user is drawing
+    bool m_showBrushCursor = false; // True when the brush cursor should be visible
+
+    double m_brushRadius = 10.0; // Brush size
+    double m_brushAlpha = 0.5;   // Opacity of the brush cursor
+    double m_brushX;             // Brush cursor position (x)
+    double m_brushY;             // Brush cursor position (y)
+
+    bool m_ctrlPressed = false; // Flag to check if Ctrl key is pressed
 };
 
 #endif
