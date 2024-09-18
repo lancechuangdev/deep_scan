@@ -1,5 +1,39 @@
 #include "mainwindow.h"
 
+// Get a list of image files in the selected folder
+std::vector<std::string> get_image_files_in_folder(const std::string &folder_path)
+{
+    std::vector<std::string> image_files;
+    Glib::Dir dir(folder_path);
+
+    // Supported image file extensions
+    std::vector<std::string> image_extensions = {".jpg", ".jpeg", ".png", ".bmp"};
+
+    // Iterate through files in the folder
+    for (const auto &file : dir)
+    {
+        std::string file_path = folder_path + "/" + file;
+
+        // Get the file extension by extracting the base name and finding the dot
+        std::string basename = Glib::path_get_basename(file);
+        std::string::size_type idx = basename.rfind('.');
+
+        if (idx != std::string::npos)
+        {
+            std::string extension = basename.substr(idx); // Extract extension
+            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
+            // Check if the extension matches a supported image format
+            if (std::find(image_extensions.begin(), image_extensions.end(), extension) != image_extensions.end())
+            {
+                image_files.push_back(file_path);
+            }
+        }
+    }
+
+    return image_files;
+}
+
 MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder)
     : Gtk::Window(obj),
       m_builder(refBuilder),
@@ -20,10 +54,12 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("start_btn", m_startBtn);
     m_builder->get_widget("stop_btn", m_stopBtn);
     m_builder->get_widget("disconnect_btn", m_disconnectBtn);
+    m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
 
     // Disable the start button initially
     m_connectBtn->set_sensitive(false);
     m_startBtn->set_sensitive(false);
+    m_openDrawingDialogBtn->set_sensitive(false);
 
     if (m_discoverBtn)
     {
@@ -44,6 +80,10 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     if (m_disconnectBtn)
     {
         m_disconnectBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onDisconnectClicked));
+    }
+    if (m_openDrawingDialogBtn)
+    {
+        m_openDrawingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenDrawingClicked));
     }
 
     m_builder->get_widget("camera_list", m_camTreeView);
@@ -71,22 +111,53 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("gain_lbl", m_gainLbl);
 
     // Image Acquiring
-    m_builder->get_widget("picker_fcb", m_pickerFcb);
-    if (m_pickerFcb)
+    m_builder->get_widget("capture_picker_fcb", m_capturePickerFcb);
+    if (m_capturePickerFcb)
     {
         // Connect to the file-set signal
-        m_pickerFcb->signal_selection_changed().connect([this]()
-        {
+        m_capturePickerFcb->signal_selection_changed().connect([this]()
+                                                               {
             // Get the selected folder path
-            auto folder = m_pickerFcb->get_filename();
+            auto folder = m_capturePickerFcb->get_filename();
 
             // Enable the start button if a folder is selected
-            m_startBtn->set_sensitive(!folder.empty()); 
-        });
+            m_startBtn->set_sensitive(!folder.empty()); });
     }
     m_builder->get_widget("capture_duration_sb", m_captureDurationSb);
     m_builder->get_widget("capture_rate_sb", m_captureRateSb);
     m_builder->get_widget("capture_pb", m_capturePb);
+
+    // Image Labelling
+    m_builder->get_widget("load_picker_fcb", m_loadPickerFcb);
+    if (m_loadPickerFcb)
+    {
+        // Connect to the file-set signal
+        m_loadPickerFcb->signal_selection_changed().connect([this]()
+                                                            {
+            // Get the selected folder path
+            auto folder = m_loadPickerFcb->get_filename();
+
+            // Get all image files from the folder
+            m_imageLabelingQueue = get_image_files_in_folder(folder);
+
+            // Enable the start button if a folder is selected
+            m_openDrawingDialogBtn->set_sensitive(!folder.empty()); });
+    }
+
+    m_builder->get_widget("draw_window", m_drawWindow);
+    m_drawWindow->set_title("Label Images");
+
+    // Connect the realize signal
+    if (m_drawWindow)
+    {
+        m_drawWindow->signal_realize().connect(sigc::mem_fun(*this, &MainWindow::onDrawWindowRealized));
+    }
+
+    m_builder->get_widget("mask_drawing_area", m_drawingArea);
+    if (m_drawingArea)
+    {
+        m_drawingArea->signal_draw().connect(sigc::mem_fun(*this, &MainWindow::onDrawingAreaDraw));
+    }
 }
 
 MainWindow::~MainWindow()
@@ -419,9 +490,9 @@ void MainWindow::onStartClicked()
 {
     m_running = true;
 
-    if (m_pickerFcb)
+    if (m_capturePickerFcb)
     {
-        m_imageFolderPath = m_pickerFcb->get_filename();
+        m_imageFolderPath = m_capturePickerFcb->get_filename();
 
         // Get current time and format it as YYYYMMDD_HHMMSS
         char timestamp[20];
@@ -513,7 +584,7 @@ void MainWindow::onStartClicked()
             else
             {
                 std::cout << "No frame in the queue" << std::endl;
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Prevent CPU overuse
+                std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Prevent CPU overuse
             }
         }
     };
@@ -538,13 +609,13 @@ void MainWindow::onStartClicked()
                 m_lastCaptureTimestamp = currentTimeInMs;
 
                 int nRet = MV_CC_SetCommandValue(m_selectedCam, "TriggerSoftware");
-                if(MV_OK != nRet)
+                if (MV_OK != nRet)
                 {
                     std::cout << "Failed to capture frames via TriggerSoftware. Error code: " << nRet << std::endl;
-                    std::this_thread::sleep_for(std::chrono::milliseconds(10));  // Prevent CPU overuse
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Prevent CPU overuse
                 }
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));  // Prevent CPU overuse
+            std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Prevent CPU overuse
         }
     };
 
@@ -597,4 +668,61 @@ void MainWindow::onDisconnectClicked()
     m_selectedCam = nullptr;
 
     clearDeviceSettings();
+}
+
+void MainWindow::onOpenDrawingClicked()
+{
+    // Open a separate DrawWindow when the button is clicked
+    if (m_drawWindow)
+    {
+        m_drawWindow->show();
+    }
+}
+
+void MainWindow::onDrawWindowRealized()
+{
+    if (!m_imageLabelingQueue.empty())
+    {
+        loadImage(m_imageLabelingQueue.front()); // Load the first image
+    }
+
+    if (m_drawWindow) {
+        std::cout << "Draw window title: " << m_drawWindow->get_title() << std::endl;
+        m_drawWindow->present();  // Bring the draw window to the front
+    }
+}
+
+bool MainWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr) {
+    if (m_currentPixbuf) {
+        // Get the dimensions of the pixbuf
+        int width = m_currentPixbuf->get_width();
+        int height = m_currentPixbuf->get_height();
+
+        // Set the size of the drawing area if needed
+        //m_drawingArea->set_size_request(width, height);
+
+        // Draw the loaded pixbuf
+        Gdk::Cairo::set_source_pixbuf(cr, m_currentPixbuf, 0, 0);
+        cr->paint();  // Render the image
+    }
+    return true;  // Return true to indicate the event has been handled
+}
+
+void MainWindow::loadImage(const std::string &filename)
+{
+    try
+    {
+        m_currentPixbuf = Gdk::Pixbuf::create_from_file(filename);
+
+        // Trigger a redraw of the drawing area
+        m_drawingArea->queue_draw();
+    }
+    catch (const Glib::FileError &ex)
+    {
+        std::cerr << "File Error: " << ex.what() << std::endl;
+    }
+    catch (const Gdk::PixbufError &ex)
+    {
+        std::cerr << "Pixbuf Error: " << ex.what() << std::endl;
+    }
 }

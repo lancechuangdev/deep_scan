@@ -9,6 +9,7 @@
 #include "MvCameraControl.h"
 #include "camcols.h"
 #include "framequeue.h"
+#include "drawwindow.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -29,15 +30,19 @@ protected:
     Gtk::Button *m_startBtn;
     Gtk::Button *m_stopBtn;
     Gtk::Button *m_disconnectBtn;
+    Gtk::Button *m_openDrawingDialogBtn;
     Gtk::Label *m_exposureTimeLbl;
     Gtk::Label *m_frameRateLbl;
     Gtk::Label *m_widthLbl;
     Gtk::Label *m_heightLbl;
     Gtk::Label *m_gainLbl;
-    Gtk::FileChooserButton *m_pickerFcb;
+    Gtk::FileChooserButton *m_capturePickerFcb;
+    Gtk::FileChooserButton *m_loadPickerFcb;
     Gtk::SpinButton *m_captureDurationSb;
     Gtk::SpinButton *m_captureRateSb;
     Gtk::ProgressBar *m_capturePb;
+    Gtk::Window *m_drawWindow;
+    Gtk::DrawingArea *m_drawingArea;
 
     // Signal handlers:
     void onDiscoverClicked();
@@ -45,7 +50,13 @@ protected:
     void onStartClicked();
     void onStopClicked();
     void onDisconnectClicked();
+    void onOpenDrawingClicked();
     void onTreeviewSelectionChanged();
+    void onDrawWindowRealized();
+    bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr);
+
+    // Load and display an image in the drawing area
+    void loadImage(const std::string& filename);
 
 private:
     Glib::RefPtr<Gtk::Builder> m_builder;
@@ -61,6 +72,8 @@ private:
     int m_captureElapsedTime; // in milliseconds
     FrameQueue m_frameQueue;
     std::atomic<bool> m_running;
+    std::vector<std::string> m_imageLabelingQueue;
+    Glib::RefPtr<Gdk::Pixbuf> m_currentPixbuf; // Store the currently loaded pixbuf
     void populateDeviceSettings();
     void clearDeviceSettings();
 };

@@ -10,7 +10,7 @@ inc_dir = join_paths(mvcam_runenv, '../include')
 lib_dir = join_paths(mvcam_runenv, '64')
 
 executable('ds', 
-    ['main.cpp', 'mainwindow.cpp', 'framequeue.cpp'],
+    ['main.cpp', 'mainwindow.cpp', 'framequeue.cpp', 'drawwindow.cpp'],
     install: true,
     install_dir: join_paths(get_option('prefix'), 'bin', 'deep-scan'),
     dependencies: gtkmm_dep,

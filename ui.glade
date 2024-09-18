@@ -62,7 +62,7 @@
           </packing>
         </child>
         <child>
-          <!-- n-columns=3 n-rows=1 -->
+          <!-- n-columns=5 n-rows=1 -->
           <object class="GtkGrid">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
@@ -82,6 +82,7 @@
                   <object class="GtkBox">
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>
+                    <property name="hexpand">True</property>
                     <property name="spacing">20</property>
                     <property name="homogeneous">True</property>
                     <child>
@@ -131,10 +132,9 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkFileChooserButton" id="picker_fcb">
+                  <object class="GtkFileChooserButton" id="capture_picker_fcb">
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>
-                    <property name="hexpand">True</property>
                     <property name="action">select-folder</property>
                     <property name="title" translatable="yes"/>
                   </object>
@@ -162,7 +162,7 @@
                     <property name="halign">start</property>
                     <property name="margin-top">10</property>
                     <property name="margin-bottom">10</property>
-                    <property name="label" translatable="yes">Process Images</property>
+                    <property name="label" translatable="yes">Capture Images</property>
                   </object>
                   <packing>
                     <property name="left-attach">0</property>
@@ -398,6 +398,118 @@
                 <property name="top-attach">0</property>
               </packing>
             </child>
+            <child>
+              <object class="GtkSeparator">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+              </object>
+              <packing>
+                <property name="left-attach">3</property>
+                <property name="top-attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <!-- n-columns=2 n-rows=6 -->
+              <object class="GtkGrid">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="margin-start">10</property>
+                <property name="margin-end">10</property>
+                <property name="margin-top">10</property>
+                <property name="margin-bottom">10</property>
+                <property name="hexpand">True</property>
+                <property name="row-spacing">20</property>
+                <property name="column-spacing">20</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="hexpand">True</property>
+                    <property name="spacing">20</property>
+                    <property name="homogeneous">True</property>
+                    <child>
+                      <object class="GtkButton" id="open_drawing_btn">
+                        <property name="label" translatable="yes">Draw</property>
+                        <property name="visible">True</property>
+                        <property name="can-focus">True</property>
+                        <property name="receives-default">True</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="left-attach">0</property>
+                    <property name="top-attach">5</property>
+                    <property name="width">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="halign">end</property>
+                    <property name="label" translatable="yes">Load Images From:</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">0</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkFileChooserButton" id="load_picker_fcb">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="action">select-folder</property>
+                    <property name="title" translatable="yes"/>
+                  </object>
+                  <packing>
+                    <property name="left-attach">1</property>
+                    <property name="top-attach">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="halign">start</property>
+                    <property name="margin-top">10</property>
+                    <property name="margin-bottom">10</property>
+                    <property name="label" translatable="yes">Label Images</property>
+                  </object>
+                  <packing>
+                    <property name="left-attach">0</property>
+                    <property name="top-attach">0</property>
+                    <property name="width">2</property>
+                  </packing>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+              </object>
+              <packing>
+                <property name="left-attach">4</property>
+                <property name="top-attach">0</property>
+              </packing>
+            </child>
           </object>
           <packing>
             <property name="left-attach">0</property>
@@ -468,6 +580,84 @@
             <property name="top-attach">1</property>
             <property name="width">2</property>
           </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+  <object class="GtkWindow" id="draw_window">
+    <property name="can-focus">False</property>
+    <property name="window-position">center</property>
+    <property name="default-width">1028</property>
+    <property name="default-height">680</property>
+    <child>
+      <!-- n-columns=3 n-rows=3 -->
+      <object class="GtkGrid">
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <child>
+          <object class="GtkDrawingArea" id="mask_drawing_area">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="margin-start">10</property>
+            <property name="margin-end">10</property>
+            <property name="margin-top">10</property>
+            <property name="margin-bottom">10</property>
+            <property name="hexpand">True</property>
+            <property name="vexpand">True</property>
+          </object>
+          <packing>
+            <property name="left-attach">1</property>
+            <property name="top-attach">1</property>
+            <property name="width">2</property>
+            <property name="height">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">label</property>
+          </object>
+          <packing>
+            <property name="left-attach">1</property>
+            <property name="top-attach">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">label</property>
+          </object>
+          <packing>
+            <property name="left-attach">2</property>
+            <property name="top-attach">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">label</property>
+          </object>
+          <packing>
+            <property name="left-attach">0</property>
+            <property name="top-attach">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel">
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">label</property>
+          </object>
+          <packing>
+            <property name="left-attach">0</property>
+            <property name="top-attach">2</property>
+          </packing>
+        </child>
+        <child>
+          <placeholder/>
         </child>
       </object>
     </child>
