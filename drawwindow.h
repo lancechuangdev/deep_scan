@@ -1,27 +1,28 @@
-#ifndef DRAW_WINDOW_H
-#define DRAW_WINDOW_H
+#ifndef DRAWWINDOW_H
+#define DRAWWINDOW_H
 
+#include <iostream>
 #include <gtkmm.h>
 
-// DrawWindow class that inherits from Gtk::Window
 class DrawWindow : public Gtk::Window {
 public:
-    // Constructor
-    DrawWindow();
+    DrawWindow(BaseObjectType* cobject, const Glib::RefPtr<Gtk::Builder>& refGlade);
+    static DrawWindow* create(const std::string &gladeFailePath);
+    void setImageLabelingPath(const std::string &path);
 
 protected:
-    // Custom DrawingArea class that inherits from Gtk::DrawingArea
-    class DrawingArea : public Gtk::DrawingArea {
-    public:
-        DrawingArea(); // Constructor
+    Gtk::DrawingArea *m_drawingArea;
 
-    protected:
-        // Override the on_draw method to customize drawing
-        bool on_draw(const Cairo::RefPtr<Cairo::Context>& cr) override;
-    };
+    void on_window_shown();
+    bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr);
+    // Load the image buffer to the drawing area
+    void loadImageBuffer(const std::string& filename);
 
-    // Member variables
-    DrawingArea drawing_area;
+private:
+    Glib::RefPtr<Gtk::Builder> m_refGlade;
+    std::string m_imageLabelingPath;
+    std::vector<std::string> m_imageLabelingQueue;
+    Glib::RefPtr<Gdk::Pixbuf> m_currentPixbuf; // Store the currently loaded pixbuf
 };
 
-#endif // DRAW_WINDOW_H
+#endif

@@ -1,11 +1,7 @@
 #ifndef DEEP_SCAN_MAINWINDOW_H
 #define DEEP_SCAN_MAINWINDOW_H
 
-#include <gtkmm/button.h>
-#include <gtkmm/treeview.h>
-#include <gtkmm/window.h>
-#include <gtkmm/label.h>
-#include <gtkmm/builder.h>
+#include <gtkmm.h>
 #include "MvCameraControl.h"
 #include "camcols.h"
 #include "framequeue.h"
@@ -41,8 +37,6 @@ protected:
     Gtk::SpinButton *m_captureDurationSb;
     Gtk::SpinButton *m_captureRateSb;
     Gtk::ProgressBar *m_capturePb;
-    Gtk::Window *m_drawWindow;
-    Gtk::DrawingArea *m_drawingArea;
 
     // Signal handlers:
     void onDiscoverClicked();
@@ -52,11 +46,6 @@ protected:
     void onDisconnectClicked();
     void onOpenDrawingClicked();
     void onTreeviewSelectionChanged();
-    void onDrawWindowRealized();
-    bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context>& cr);
-
-    // Load and display an image in the drawing area
-    void loadImage(const std::string& filename);
 
 private:
     Glib::RefPtr<Gtk::Builder> m_builder;
@@ -72,8 +61,7 @@ private:
     int m_captureElapsedTime; // in milliseconds
     FrameQueue m_frameQueue;
     std::atomic<bool> m_running;
-    std::vector<std::string> m_imageLabelingQueue;
-    Glib::RefPtr<Gdk::Pixbuf> m_currentPixbuf; // Store the currently loaded pixbuf
+    std::string m_imageLabelingPath;
     void populateDeviceSettings();
     void clearDeviceSettings();
 };
