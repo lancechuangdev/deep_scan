@@ -100,25 +100,22 @@ void DrawWindow::on_window_shown()
 
 bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr)
 {
+    // Apply zoom and pan transformations
+    cr->translate(m_offsetX, m_offsetY);   // Apply panning offset
+    cr->scale(m_zoomFactor, m_zoomFactor); // Apply zoom
+
+    // Draw the image
     if (m_currentPixbuf)
     {
-        // Get the dimensions of the pixbuf
-        int width = m_currentPixbuf->get_width();
-        int height = m_currentPixbuf->get_height();
-
-        // Set the size of the drawing area if needed
-        m_drawingArea->set_size_request(width, height);
-
-        // Apply zoom and pan transformations
-        cr->save();
-        cr->translate(m_offsetX, m_offsetY);   // Apply panning offset
-        cr->scale(m_zoomFactor, m_zoomFactor); // Apply zoom
-
-        // Draw the image
         Gdk::Cairo::set_source_pixbuf(cr, m_currentPixbuf, 0, 0);
         cr->paint();
+    }
 
-        cr->restore();
+    // If there is a mask, draw it on top of the image
+    if (m_maskPixbuf)
+    {
+        Gdk::Cairo::set_source_pixbuf(cr, m_maskPixbuf, 0, 0);
+        cr->paint();
     }
 
     // Draw the brush cursor on top
@@ -137,6 +134,20 @@ void DrawWindow::loadImageBuffer(const std::string &filename)
         m_zoomFactor = 1.0;
         m_offsetX = 0.0;
         m_offsetY = 0.0;
+
+        if (m_currentPixbuf)
+        {
+            // Get the dimensions of the pixbuf
+            int width = m_currentPixbuf->get_width();
+            int height = m_currentPixbuf->get_height();
+
+            // Set the size of the drawing area if needed
+            m_drawingArea->set_size_request(width, height);
+
+            // Create a transparent mask pixbuf of the same size as the image
+            m_maskPixbuf = Gdk::Pixbuf::create(Gdk::COLORSPACE_RGB, true, 8, width, height);
+            m_maskPixbuf->fill(0xffffffbe); // Initialize the mask to be fully transparent
+        }
 
         // Trigger a redraw of the drawing area
         m_drawingArea->queue_draw();
@@ -157,15 +168,19 @@ void DrawWindow::onCircleBrushClicked()
     m_showBrushCursor = true;
 }
 
-bool DrawWindow::on_key_press_event(GdkEventKey* key_event) {
-    if (key_event->keyval == GDK_KEY_Control_L || key_event->keyval == GDK_KEY_Control_R) {
+bool DrawWindow::on_key_press_event(GdkEventKey *key_event)
+{
+    if (key_event->keyval == GDK_KEY_Control_L || key_event->keyval == GDK_KEY_Control_R)
+    {
         m_ctrlPressed = true;
     }
     return Gtk::Window::on_key_press_event(key_event);
 }
 
-bool DrawWindow::on_key_release_event(GdkEventKey* key_event) {
-    if (key_event->keyval == GDK_KEY_Control_L || key_event->keyval == GDK_KEY_Control_R) {
+bool DrawWindow::on_key_release_event(GdkEventKey *key_event)
+{
+    if (key_event->keyval == GDK_KEY_Control_L || key_event->keyval == GDK_KEY_Control_R)
+    {
         m_ctrlPressed = false;
     }
     return Gtk::Window::on_key_release_event(key_event);
@@ -231,6 +246,10 @@ bool DrawWindow::onButtonPressEvent(GdkEventButton *button_event)
             // Start drawing
             m_isDrawing = true;
             m_showBrushCursor = false;
+
+            drawOnMask(button_event->x, button_event->y, m_brushRadius);
+            // Trigger a redraw of the drawing area
+            m_drawingArea->queue_draw();
         }
         else
         {
@@ -273,6 +292,7 @@ bool DrawWindow::onMotionNotifyEvent(GdkEventMotion *motion_event)
 
         if (m_isDrawing)
         {
+            drawOnMask(m_brushX, m_brushY, m_brushRadius);
         }
         else
         {
@@ -306,8 +326,32 @@ void DrawWindow::drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr)
 {
     if (m_showBrushCursor)
     {
-        cr->set_source_rgba(255, 255, 255, m_brushAlpha); // Draw the brush outline in red
+        cr->set_source_rgba(255, 255, 255, m_brushAlpha);
         cr->arc(m_brushX, m_brushY, m_brushRadius, 0, 2 * M_PI);
         cr->fill();
     }
+}
+
+void DrawWindow::drawOnMask(double x, double y, double brushRadius)
+{
+    // Create a Cairo context from the mask pixbuf's data
+    auto surface = Cairo::ImageSurface::create(
+        (unsigned char*)m_maskPixbuf->get_pixels(), 
+        Cairo::FORMAT_ARGB32,
+        m_maskPixbuf->get_width(),
+        m_maskPixbuf->get_height(),
+        m_maskPixbuf->get_rowstride()
+    );
+
+    auto cr = Cairo::Context::create(surface);
+
+    // Set the brush color and alpha
+    cr->set_source_rgba(1.0, 1.0, 1.0, m_brushAlpha);
+
+    // Draw the circle representing the brush
+    cr->arc(x, y, brushRadius, 0, 2 * M_PI);
+    cr->fill();
+
+    // Trigger a redraw of the drawing area
+    m_drawingArea->queue_draw();
 }

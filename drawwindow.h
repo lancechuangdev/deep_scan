@@ -16,8 +16,10 @@ protected:
     Gtk::Button *m_circleBrushBtn;
     void on_window_shown();
     bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr);
+    //void on_drawingarea_draw(const Cairo::RefPtr<Cairo::Context>& cr, int width, int height);
     void loadImageBuffer(const std::string &filename); // Load the image buffer to the drawing area
     void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
+    void drawOnMask(double x, double y, double brushRadius);
     void onCircleBrushClicked();
 
     // Mouse event
@@ -51,7 +53,8 @@ private:
     double m_brushX;             // Brush cursor position (x)
     double m_brushY;             // Brush cursor position (y)
 
-    bool m_ctrlPressed = false; // Flag to check if Ctrl key is pressed
+    bool m_ctrlPressed = false;             // Flag to check if Ctrl key is pressed
+    Glib::RefPtr<Gdk::Pixbuf> m_maskPixbuf; // Mask layer (transparent surface)
 };
 
 #endif
