@@ -63,6 +63,12 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
     {
         m_circleBrushBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onCircleBrushClicked));
     }
+
+    m_refGlade->get_widget("save_mask_btn", m_saveMaskBtn);
+    if (m_saveMaskBtn)
+    {
+        m_saveMaskBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onSaveMaskClicked));
+    }
 }
 
 DrawWindow *DrawWindow::create(const std::string &gladeFailePath)
@@ -146,7 +152,8 @@ void DrawWindow::loadImageBuffer(const std::string &filename)
 
             // Create a transparent mask pixbuf of the same size as the image
             m_maskPixbuf = Gdk::Pixbuf::create(Gdk::COLORSPACE_RGB, true, 8, width, height);
-            m_maskPixbuf->fill(0xffffffbe); // Initialize the mask to be fully transparent
+            // m_maskPixbuf->fill(0xffffffbe); // For testing
+            m_maskPixbuf->fill(0x00000000); // Initialize the mask to be fully transparent black
         }
 
         // Trigger a redraw of the drawing area
@@ -166,6 +173,52 @@ void DrawWindow::onCircleBrushClicked()
 {
     m_isDrawingMode = true;
     m_showBrushCursor = true;
+}
+
+void DrawWindow::onSaveMaskClicked()
+{
+    auto filename = "mask";
+
+    saveMaskAsBinary(filename);
+}
+
+void DrawWindow::saveMaskAsBinary(const std::string &filename)
+{
+    // Get the pixel data from the mask pixbuf
+    guchar *pixels = m_maskPixbuf->get_pixels();
+    int width = m_maskPixbuf->get_width();
+    int height = m_maskPixbuf->get_height();
+    int rowstride = m_maskPixbuf->get_rowstride();
+    int n_channels = m_maskPixbuf->get_n_channels();
+
+    // Create a new grayscale Cairo surface to store the binary mask
+    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_A8, width, height);
+    auto cr = Cairo::Context::create(surface);
+
+    // Access the surface's pixel data to manipulate the binary mask
+    unsigned char *surface_data = surface->get_data();
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            // Access the pixel in the original pixbuf (mask pixbuf)
+            guchar *pixel = pixels + y * rowstride + x * n_channels;
+            guchar alpha = pixel[3]; // Alpha channel
+
+            // If alpha is above a threshold (drawn), set the corresponding pixel to 1, otherwise 0
+            unsigned char mask_value = (alpha > 128) ? 1 : 0;
+
+            // Write the binary mask value to the surface
+            surface_data[y * width + x] = mask_value * 255; // For visualization, multiply by 255
+        }
+    }
+
+    // Mark the surface as modified to ensure changes are reflected
+    surface->mark_dirty();
+
+    // Save the surface as a grayscale image (e.g., PNG, BMP, etc.)
+    surface->write_to_png(filename);
 }
 
 bool DrawWindow::on_key_press_event(GdkEventKey *key_event)
@@ -336,12 +389,11 @@ void DrawWindow::drawOnMask(double x, double y, double brushRadius)
 {
     // Create a Cairo context from the mask pixbuf's data
     auto surface = Cairo::ImageSurface::create(
-        (unsigned char*)m_maskPixbuf->get_pixels(), 
+        (unsigned char *)m_maskPixbuf->get_pixels(),
         Cairo::FORMAT_ARGB32,
         m_maskPixbuf->get_width(),
         m_maskPixbuf->get_height(),
-        m_maskPixbuf->get_rowstride()
-    );
+        m_maskPixbuf->get_rowstride());
 
     auto cr = Cairo::Context::create(surface);
 

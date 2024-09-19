@@ -14,13 +14,14 @@ public:
 protected:
     Gtk::DrawingArea *m_drawingArea;
     Gtk::Button *m_circleBrushBtn;
+    Gtk::Button *m_saveMaskBtn;
     void on_window_shown();
     bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr);
-    //void on_drawingarea_draw(const Cairo::RefPtr<Cairo::Context>& cr, int width, int height);
     void loadImageBuffer(const std::string &filename); // Load the image buffer to the drawing area
     void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
     void drawOnMask(double x, double y, double brushRadius);
     void onCircleBrushClicked();
+    void onSaveMaskClicked();
 
     // Mouse event
     bool onScrollEvent(GdkEventScroll *scroll_event);
@@ -55,6 +56,7 @@ private:
 
     bool m_ctrlPressed = false;             // Flag to check if Ctrl key is pressed
     Glib::RefPtr<Gdk::Pixbuf> m_maskPixbuf; // Mask layer (transparent surface)
+    void saveMaskAsBinary(const std::string& filename);
 };
 
 #endif
