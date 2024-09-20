@@ -13,29 +13,48 @@ public:
 
 protected:
     Gtk::DrawingArea *m_drawingArea;
-    Gtk::Button *m_circleBrushBtn;
+    Gtk::Button *m_previousImageBtn;
+    Gtk::Button *m_nextImageBtn;
+    Gtk::Button *m_selectImageBtn;
+    Gtk::Button *m_roundBrushBtn;
+    Gtk::Button *m_resetMaskBtn;
     Gtk::Button *m_saveMaskBtn;
+    Gtk::Label *m_imageNameLbl;
+    Gtk::Label *m_imagePagingLbl;
+
+    // Window events
     void on_window_shown();
     bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr);
-    void loadImageBuffer(const std::string &filename); // Load the image buffer to the drawing area
-    void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
-    void drawOnMask(double x, double y, double brushRadius);
-    void onCircleBrushClicked();
+    
+    // Button events
+    void onPreviousImageClicked();
+    void onNextImageClicked();
+    void onSelectImageClicked();
+    void onRoundBrushClicked();
+    void onResetMaskClicked();
     void onSaveMaskClicked();
 
-    // Mouse event
+    // Mouse events
     bool onScrollEvent(GdkEventScroll *scroll_event);
     bool onButtonPressEvent(GdkEventButton *button_event);
     bool onButtonReleaseEvent(GdkEventButton *button_event);
     bool onMotionNotifyEvent(GdkEventMotion *motion_event);
 
+    // Key events
     bool on_key_press_event(GdkEventKey *key_event) override;
     bool on_key_release_event(GdkEventKey *key_event) override;
+
+    // Drawing
+    void InitializeMaskPixBuf(int width, int height);
+    void loadImageBuffer(const std::string &filename); // Load the image buffer to the drawing area
+    void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
+    void drawOnMask();
 
 private:
     Glib::RefPtr<Gtk::Builder> m_refGlade;
     std::string m_imageLabelingPath;
     std::vector<std::string> m_imageLabelingQueue;
+    size_t m_imageLabelingIndex = 0;
     Glib::RefPtr<Gdk::Pixbuf> m_currentPixbuf; // Store the currently loaded pixbuf
 
     double m_zoomFactor = 1.0; // Zoom factor (1.0 = no zoom)

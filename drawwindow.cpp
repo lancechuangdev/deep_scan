@@ -34,6 +34,33 @@ std::vector<std::string> get_image_files_in_folder(const std::string &folder_pat
     return image_files;
 }
 
+std::string get_extension(const std::string &filename)
+{
+    size_t dot_pos = filename.find_last_of(".");
+    if (dot_pos == std::string::npos)
+    {
+        return ""; // No extension found
+    }
+    return filename.substr(dot_pos); // Includes the dot (e.g., ".jpg")
+}
+
+std::string constructMaskName(const std::string &imagePath)
+{
+    // Get the base name (filename with extension)
+    std::string baseName = Glib::path_get_basename(imagePath); // Get filename with extension
+    std::string extension = get_extension(baseName);           // Get extension (e.g., .jpg)
+
+    // Remove the extension from base name
+    baseName = baseName.substr(0, baseName.length() - extension.length());
+
+    // Construct the new name by appending '_mask'
+    std::string maskName = baseName + "_mask" + extension;
+
+    // Return the new full path with '_mask' appended
+    std::string directory = Glib::path_get_dirname(imagePath);
+    return Glib::build_filename(directory, maskName);
+}
+
 DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade)
     : Gtk::Window(cobject), m_refGlade(refGlade)
 {
@@ -58,10 +85,37 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
         m_drawingArea->add_events(Gdk::KEY_PRESS_MASK);
     }
 
-    m_refGlade->get_widget("circle_brush_btn", m_circleBrushBtn);
-    if (m_circleBrushBtn)
+    m_refGlade->get_widget("image_name_lbl", m_imageNameLbl);
+    m_refGlade->get_widget("image_paging_lbl", m_imagePagingLbl);
+
+    m_refGlade->get_widget("previous_image_btn", m_previousImageBtn);
+    if (m_previousImageBtn)
     {
-        m_circleBrushBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onCircleBrushClicked));
+        m_previousImageBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onPreviousImageClicked));
+    }
+
+    m_refGlade->get_widget("next_image_btn", m_nextImageBtn);
+    if (m_nextImageBtn)
+    {
+        m_nextImageBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onNextImageClicked));
+    }
+
+    m_refGlade->get_widget("select_image_btn", m_selectImageBtn);
+    if (m_selectImageBtn)
+    {
+        m_selectImageBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onSelectImageClicked));
+    }
+
+    m_refGlade->get_widget("round_brush_btn", m_roundBrushBtn);
+    if (m_roundBrushBtn)
+    {
+        m_roundBrushBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onRoundBrushClicked));
+    }
+
+    m_refGlade->get_widget("reset_mask_btn", m_resetMaskBtn);
+    if (m_resetMaskBtn)
+    {
+        m_resetMaskBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onResetMaskClicked));
     }
 
     m_refGlade->get_widget("save_mask_btn", m_saveMaskBtn);
@@ -92,15 +146,26 @@ void DrawWindow::setImageLabelingPath(const std::string &path)
 {
     m_imageLabelingPath = path;
     m_imageLabelingQueue = get_image_files_in_folder(path);
+    m_imageLabelingIndex = 0;
 }
 
 void DrawWindow::on_window_shown()
 {
-    std::cout << "Window is shown!" << std::endl;
     // Load the first image buffer to drawing area
     if (!m_imageLabelingQueue.empty())
     {
-        loadImageBuffer(m_imageLabelingQueue.front());
+        loadImageBuffer(m_imageLabelingQueue[m_imageLabelingIndex]);
+    }
+
+    // Update navigation buttons status
+    if (m_previousImageBtn)
+    {
+        m_previousImageBtn->set_sensitive(m_imageLabelingIndex > 0);
+    }
+
+    if (m_nextImageBtn)
+    {
+        m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
     }
 }
 
@@ -130,10 +195,29 @@ bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr)
     return true; // Return true to indicate the event has been handled
 }
 
+void DrawWindow::InitializeMaskPixBuf(int width, int height)
+{
+    // Create a transparent mask pixbuf of the same size as the image
+    m_maskPixbuf = Gdk::Pixbuf::create(Gdk::COLORSPACE_RGB, true, 8, width, height);
+    // m_maskPixbuf->fill(0xffffffbe); // For testing
+    m_maskPixbuf->fill(0x00000000); // Initialize the mask to be fully transparent black
+}
+
 void DrawWindow::loadImageBuffer(const std::string &filename)
 {
     try
     {
+        // Set image name label
+        if (m_imageNameLbl)
+        {
+            m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+        }
+        if (m_imagePagingLbl)
+        {
+            m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
+        }
+
+        // Load image
         m_currentPixbuf = Gdk::Pixbuf::create_from_file(filename);
 
         // Reset zoom and pan when a new image is loaded
@@ -150,10 +234,8 @@ void DrawWindow::loadImageBuffer(const std::string &filename)
             // Set the size of the drawing area if needed
             m_drawingArea->set_size_request(width, height);
 
-            // Create a transparent mask pixbuf of the same size as the image
-            m_maskPixbuf = Gdk::Pixbuf::create(Gdk::COLORSPACE_RGB, true, 8, width, height);
-            // m_maskPixbuf->fill(0xffffffbe); // For testing
-            m_maskPixbuf->fill(0x00000000); // Initialize the mask to be fully transparent black
+            // Load mask pix buf
+            InitializeMaskPixBuf(width, height);
         }
 
         // Trigger a redraw of the drawing area
@@ -169,16 +251,58 @@ void DrawWindow::loadImageBuffer(const std::string &filename)
     }
 }
 
-void DrawWindow::onCircleBrushClicked()
+void DrawWindow::onPreviousImageClicked()
+{
+    m_imageLabelingIndex = std::max(static_cast<size_t>(0), m_imageLabelingIndex - 1);
+    m_previousImageBtn->set_sensitive(m_imageLabelingIndex > 0);
+    m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
+    if (m_imagePagingLbl)
+    {
+        m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
+    }
+    loadImageBuffer(m_imageLabelingQueue[m_imageLabelingIndex]);
+}
+
+void DrawWindow::onNextImageClicked()
+{
+    m_imageLabelingIndex = std::min(m_imageLabelingQueue.size() - 1, m_imageLabelingIndex + 1);
+    m_previousImageBtn->set_sensitive(m_imageLabelingIndex > 0);
+    m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
+    if (m_imagePagingLbl)
+    {
+        m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
+    }
+    loadImageBuffer(m_imageLabelingQueue[m_imageLabelingIndex]);
+}
+
+void DrawWindow::onSelectImageClicked()
+{
+    m_isDrawingMode = false;
+    m_showBrushCursor = false;
+}
+
+void DrawWindow::onRoundBrushClicked()
 {
     m_isDrawingMode = true;
     m_showBrushCursor = true;
 }
 
+void DrawWindow::onResetMaskClicked()
+{
+    if (m_currentPixbuf)
+    {
+        int width = m_currentPixbuf->get_width();
+        int height = m_currentPixbuf->get_height();
+        InitializeMaskPixBuf(width, height);
+
+        // Trigger a redraw of the drawing area
+        m_drawingArea->queue_draw();
+    }
+}
+
 void DrawWindow::onSaveMaskClicked()
 {
-    auto filename = "mask";
-
+    auto filename = constructMaskName(m_imageLabelingQueue[m_imageLabelingIndex]);
     saveMaskAsBinary(filename);
 }
 
@@ -207,7 +331,7 @@ void DrawWindow::saveMaskAsBinary(const std::string &filename)
             guchar alpha = pixel[3]; // Alpha channel
 
             // If alpha is above a threshold (drawn), set the corresponding pixel to 1, otherwise 0
-            unsigned char mask_value = (alpha > 128) ? 1 : 0;
+            unsigned char mask_value = (alpha > 0) ? 1 : 0;
 
             // Write the binary mask value to the surface
             surface_data[y * width + x] = mask_value * 255; // For visualization, multiply by 255
@@ -300,7 +424,7 @@ bool DrawWindow::onButtonPressEvent(GdkEventButton *button_event)
             m_isDrawing = true;
             m_showBrushCursor = false;
 
-            drawOnMask(button_event->x, button_event->y, m_brushRadius);
+            drawOnMask();
             // Trigger a redraw of the drawing area
             m_drawingArea->queue_draw();
         }
@@ -340,12 +464,15 @@ bool DrawWindow::onMotionNotifyEvent(GdkEventMotion *motion_event)
 {
     if (m_isDrawingMode)
     {
-        m_brushX = motion_event->x;
-        m_brushY = motion_event->y;
+        //m_brushX = motion_event->x;
+        //m_brushY = motion_event->y;
+
+        m_brushX = (motion_event->x - m_offsetX) / m_zoomFactor;
+        m_brushY = (motion_event->y - m_offsetY) / m_zoomFactor;
 
         if (m_isDrawing)
         {
-            drawOnMask(m_brushX, m_brushY, m_brushRadius);
+            drawOnMask();
         }
         else
         {
@@ -385,24 +512,52 @@ void DrawWindow::drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr)
     }
 }
 
-void DrawWindow::drawOnMask(double x, double y, double brushRadius)
+void DrawWindow::drawOnMask()
 {
-    // Create a Cairo context from the mask pixbuf's data
-    auto surface = Cairo::ImageSurface::create(
-        (unsigned char *)m_maskPixbuf->get_pixels(),
-        Cairo::FORMAT_ARGB32,
-        m_maskPixbuf->get_width(),
-        m_maskPixbuf->get_height(),
-        m_maskPixbuf->get_rowstride());
+    // Get pixbuf pixel data
+    guchar *pixels = m_maskPixbuf->get_pixels();
+    int rowstride = m_maskPixbuf->get_rowstride();
+    int n_channels = m_maskPixbuf->get_n_channels();
 
-    auto cr = Cairo::Context::create(surface);
+    // Loop over the circular area where the brush/eraser is applied
+    for (int i = -m_brushRadius; i <= m_brushRadius; ++i)
+    {
+        for (int j = -m_brushRadius; j <= m_brushRadius; ++j)
+        {
+            int brushX = m_brushX + i;
+            int brushY = m_brushY + j;
 
-    // Set the brush color and alpha
-    cr->set_source_rgba(1.0, 1.0, 1.0, m_brushAlpha);
+            // Ensure we're within the bounds of the image
+            if (brushX >= 0 && brushX < m_maskPixbuf->get_width() &&
+                brushY >= 0 && brushY < m_maskPixbuf->get_height())
+            {
 
-    // Draw the circle representing the brush
-    cr->arc(x, y, brushRadius, 0, 2 * M_PI);
-    cr->fill();
+                // Calculate the distance from the center of the brush
+                double distance = std::sqrt(i * i + j * j);
+                if (distance <= m_brushRadius)
+                {
+                    // Get a pointer to the current pixel
+                    guchar *pixel = pixels + brushY * rowstride + brushX * n_channels;
+                    if (m_ctrlPressed)
+                    {
+                        // Set color to black and alpha to 0 (transparent) to erase
+                        pixel[0] = 0;
+                        pixel[1] = 0;
+                        pixel[2] = 0;
+                        pixel[3] = 0;
+                    }
+                    else
+                    {
+                        // Set alpha and color for brush mode
+                        pixel[0] = 255;                       // Red
+                        pixel[1] = 255;                       // Green
+                        pixel[2] = 255;                       // Blue
+                        pixel[3] = (int)(m_brushAlpha * 255); // Set alpha
+                    }
+                }
+            }
+        }
+    }
 
     // Trigger a redraw of the drawing area
     m_drawingArea->queue_draw();
