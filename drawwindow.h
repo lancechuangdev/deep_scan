@@ -2,6 +2,7 @@
 #define DRAWWINDOW_H
 
 #include <iostream>
+#include <filesystem>
 #include <gtkmm.h>
 
 class DrawWindow : public Gtk::Window
@@ -12,20 +13,26 @@ public:
     void setImageLabelingPath(const std::string &path);
 
 protected:
-    Gtk::DrawingArea *m_drawingArea;
+    // Drawing image name, navigation and actions
+    Gtk::Label *m_imageNameLbl;
     Gtk::Button *m_previousImageBtn;
+    Gtk::Label *m_imagePagingLbl;
     Gtk::Button *m_nextImageBtn;
+    Gtk::Switch *m_maskSwitch;
+    Gtk::Button *m_saveMaskBtn;
+
+    // Drawing toolbar
     Gtk::Button *m_selectImageBtn;
     Gtk::Button *m_roundBrushBtn;
     Gtk::Button *m_resetMaskBtn;
-    Gtk::Button *m_saveMaskBtn;
-    Gtk::Label *m_imageNameLbl;
-    Gtk::Label *m_imagePagingLbl;
+
+    // Drawing area
+    Gtk::DrawingArea *m_drawingArea;
 
     // Window events
     void on_window_shown();
     bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr);
-    
+
     // Button events
     void onPreviousImageClicked();
     void onNextImageClicked();
@@ -44,9 +51,15 @@ protected:
     bool on_key_press_event(GdkEventKey *key_event) override;
     bool on_key_release_event(GdkEventKey *key_event) override;
 
+    // Switch events
+    void onMaskSwitchActiveChanged();
+
     // Drawing
     void InitializeMaskPixBuf(int width, int height);
-    void loadImageBuffer(const std::string &filename); // Load the image buffer to the drawing area
+    void clearDrawingArea();
+    void loadDrawingAreaBuffer(bool showMask = false);
+    void loadImageBufferFromFile(const std::string &filename); // Load the image buffer to the drawing area
+    void LoadMaskBufferFromFile(const std::string &filename);
     void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
     void drawOnMask();
 
@@ -55,7 +68,8 @@ private:
     std::string m_imageLabelingPath;
     std::vector<std::string> m_imageLabelingQueue;
     size_t m_imageLabelingIndex = 0;
-    Glib::RefPtr<Gdk::Pixbuf> m_currentPixbuf; // Store the currently loaded pixbuf
+    Glib::RefPtr<Gdk::Pixbuf> m_ImagePixbuf; // Store the currently loaded image pixbuf
+    Glib::RefPtr<Gdk::Pixbuf> m_maskPixbuf;    // Mask layer (transparent surface)
 
     double m_zoomFactor = 1.0; // Zoom factor (1.0 = no zoom)
     double m_offsetX = 0.0;    // Horizontal pan offset
@@ -73,9 +87,8 @@ private:
     double m_brushX;             // Brush cursor position (x)
     double m_brushY;             // Brush cursor position (y)
 
-    bool m_ctrlPressed = false;             // Flag to check if Ctrl key is pressed
-    Glib::RefPtr<Gdk::Pixbuf> m_maskPixbuf; // Mask layer (transparent surface)
-    void saveMaskAsBinary(const std::string& filename);
+    bool m_ctrlPressed = false; // Flag to check if Ctrl key is pressed
+    void saveMaskAsBinary(const std::string &filename);
 };
 
 #endif

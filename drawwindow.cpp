@@ -100,6 +100,16 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
         m_nextImageBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onNextImageClicked));
     }
 
+    m_refGlade->get_widget("mask_switch", m_maskSwitch);
+    if (m_maskSwitch)
+    {
+        // Get the PropertyProxy for the active property of the switch
+        Glib::PropertyProxy<bool> active_property = m_maskSwitch->property_active();
+
+        // Connect to the signal_changed() of the PropertyProxy
+        active_property.signal_changed().connect(sigc::mem_fun(*this, &DrawWindow::onMaskSwitchActiveChanged));
+    }
+
     m_refGlade->get_widget("select_image_btn", m_selectImageBtn);
     if (m_selectImageBtn)
     {
@@ -151,10 +161,20 @@ void DrawWindow::setImageLabelingPath(const std::string &path)
 
 void DrawWindow::on_window_shown()
 {
+    // Set image name label
+    if (m_imageNameLbl)
+    {
+        m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+    }
+    if (m_imagePagingLbl)
+    {
+        m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
+    }
+
     // Load the first image buffer to drawing area
     if (!m_imageLabelingQueue.empty())
     {
-        loadImageBuffer(m_imageLabelingQueue[m_imageLabelingIndex]);
+        loadDrawingAreaBuffer();
     }
 
     // Update navigation buttons status
@@ -176,9 +196,9 @@ bool DrawWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr)
     cr->scale(m_zoomFactor, m_zoomFactor); // Apply zoom
 
     // Draw the image
-    if (m_currentPixbuf)
+    if (m_ImagePixbuf)
     {
-        Gdk::Cairo::set_source_pixbuf(cr, m_currentPixbuf, 0, 0);
+        Gdk::Cairo::set_source_pixbuf(cr, m_ImagePixbuf, 0, 0);
         cr->paint();
     }
 
@@ -203,43 +223,123 @@ void DrawWindow::InitializeMaskPixBuf(int width, int height)
     m_maskPixbuf->fill(0x00000000); // Initialize the mask to be fully transparent black
 }
 
-void DrawWindow::loadImageBuffer(const std::string &filename)
+void DrawWindow::clearDrawingArea()
 {
-    try
+    if (m_ImagePixbuf)
     {
-        // Set image name label
-        if (m_imageNameLbl)
+        int width = m_ImagePixbuf->get_width();
+        int height = m_ImagePixbuf->get_height();
+
+        m_ImagePixbuf = Gdk::Pixbuf::create(Gdk::COLORSPACE_RGB, true, 8, width, height);
+        m_ImagePixbuf->fill(0x00000000); // Initialize the mask to be fully transparent black
+
+        InitializeMaskPixBuf(width, height);
+    }
+
+    // Trigger a redraw of the drawing area
+    m_drawingArea->queue_draw();
+}
+
+void DrawWindow::loadDrawingAreaBuffer(bool showMask)
+{
+    if (!m_drawingArea)
+        return;
+
+    // Clear the drawing area before loading
+    clearDrawingArea();
+
+    // Reset zoom and pan when a new image is loaded
+    m_zoomFactor = 1.0;
+    m_offsetX = 0.0;
+    m_offsetY = 0.0;
+
+    loadImageBufferFromFile(m_imageLabelingQueue[m_imageLabelingIndex]);
+
+    int width, height;
+    m_drawingArea->get_size_request(width, height);
+
+    if (m_ImagePixbuf)
+    {
+        // Get the dimensions of the pixbuf
+        width = m_ImagePixbuf->get_width();
+        height = m_ImagePixbuf->get_height();
+        // Set the size of the drawing area if needed
+        m_drawingArea->set_size_request(width, height);
+    }
+
+    if (showMask)
+    {
+        auto maskFile = constructMaskName(m_imageLabelingQueue[m_imageLabelingIndex]);
+        if (std::filesystem::exists(maskFile))
         {
-            m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+            LoadMaskBufferFromFile(maskFile);
         }
-        if (m_imagePagingLbl)
+        else
         {
-            m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
-        }
-
-        // Load image
-        m_currentPixbuf = Gdk::Pixbuf::create_from_file(filename);
-
-        // Reset zoom and pan when a new image is loaded
-        m_zoomFactor = 1.0;
-        m_offsetX = 0.0;
-        m_offsetY = 0.0;
-
-        if (m_currentPixbuf)
-        {
-            // Get the dimensions of the pixbuf
-            int width = m_currentPixbuf->get_width();
-            int height = m_currentPixbuf->get_height();
-
-            // Set the size of the drawing area if needed
-            m_drawingArea->set_size_request(width, height);
-
             // Load mask pix buf
             InitializeMaskPixBuf(width, height);
         }
+    }
 
-        // Trigger a redraw of the drawing area
-        m_drawingArea->queue_draw();
+    // Trigger a redraw of the drawing area
+    m_drawingArea->queue_draw();
+}
+
+void DrawWindow::loadImageBufferFromFile(const std::string &filename)
+{
+    try
+    {
+        // Load image
+        m_ImagePixbuf = Gdk::Pixbuf::create_from_file(filename);
+    }
+    catch (const Glib::FileError &ex)
+    {
+        std::cerr << "File Error: " << ex.what() << std::endl;
+    }
+    catch (const Gdk::PixbufError &ex)
+    {
+        std::cerr << "Pixbuf Error: " << ex.what() << std::endl;
+    }
+}
+
+void DrawWindow::LoadMaskBufferFromFile(const std::string &filename)
+{
+    try
+    {
+        // Load mask
+        m_maskPixbuf = Gdk::Pixbuf::create_from_file(filename);
+
+        // Ensure the pixbuf has an alpha channel
+        if (!m_maskPixbuf->get_has_alpha())
+        {
+            // Add alpha channel if it's not present
+            m_maskPixbuf = m_maskPixbuf->add_alpha(false, 0, 0, 0);
+        }
+
+        // Get pixbuf properties
+        int width = m_maskPixbuf->get_width();
+        int height = m_maskPixbuf->get_height();
+        int rowstride = m_maskPixbuf->get_rowstride();
+        int n_channels = m_maskPixbuf->get_n_channels();
+
+        // Get pointer to the pixel data
+        guchar *pixels = m_maskPixbuf->get_pixels();
+
+        // Iterate through the pixels and modify the alpha channel
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                guchar *pixel = pixels + y * rowstride + x * n_channels;
+
+                // Check if the pixel is black (RGB = 0,0,0)
+                if (pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0)
+                {
+                    // Set alpha to 0 (fully transparent)
+                    pixel[3] = 0;
+                }
+            }
+        }
     }
     catch (const Glib::FileError &ex)
     {
@@ -256,11 +356,18 @@ void DrawWindow::onPreviousImageClicked()
     m_imageLabelingIndex = std::max(static_cast<size_t>(0), m_imageLabelingIndex - 1);
     m_previousImageBtn->set_sensitive(m_imageLabelingIndex > 0);
     m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
+    if (m_imageNameLbl)
+    {
+        m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+    }
     if (m_imagePagingLbl)
     {
         m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
     }
-    loadImageBuffer(m_imageLabelingQueue[m_imageLabelingIndex]);
+    if (m_maskSwitch)
+    {
+        loadDrawingAreaBuffer(m_maskSwitch->get_active());
+    }
 }
 
 void DrawWindow::onNextImageClicked()
@@ -268,11 +375,24 @@ void DrawWindow::onNextImageClicked()
     m_imageLabelingIndex = std::min(m_imageLabelingQueue.size() - 1, m_imageLabelingIndex + 1);
     m_previousImageBtn->set_sensitive(m_imageLabelingIndex > 0);
     m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
+    if (m_imageNameLbl)
+    {
+        m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+    }
     if (m_imagePagingLbl)
     {
         m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
     }
-    loadImageBuffer(m_imageLabelingQueue[m_imageLabelingIndex]);
+    if (m_maskSwitch)
+    {
+        loadDrawingAreaBuffer(m_maskSwitch->get_active());
+    }
+}
+
+void DrawWindow::onMaskSwitchActiveChanged()
+{
+    bool showMask = m_maskSwitch->get_active(); // Retrieve the current state
+    loadDrawingAreaBuffer(showMask);
 }
 
 void DrawWindow::onSelectImageClicked()
@@ -289,10 +409,10 @@ void DrawWindow::onRoundBrushClicked()
 
 void DrawWindow::onResetMaskClicked()
 {
-    if (m_currentPixbuf)
+    if (m_ImagePixbuf)
     {
-        int width = m_currentPixbuf->get_width();
-        int height = m_currentPixbuf->get_height();
+        int width = m_ImagePixbuf->get_width();
+        int height = m_ImagePixbuf->get_height();
         InitializeMaskPixBuf(width, height);
 
         // Trigger a redraw of the drawing area
@@ -464,9 +584,6 @@ bool DrawWindow::onMotionNotifyEvent(GdkEventMotion *motion_event)
 {
     if (m_isDrawingMode)
     {
-        //m_brushX = motion_event->x;
-        //m_brushY = motion_event->y;
-
         m_brushX = (motion_event->x - m_offsetX) / m_zoomFactor;
         m_brushY = (motion_event->y - m_offsetY) / m_zoomFactor;
 

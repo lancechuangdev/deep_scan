@@ -749,6 +749,18 @@
             <property name="margin-bottom">10</property>
             <property name="spacing">9</property>
             <child>
+              <object class="GtkSwitch" id="mask_switch">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="valign">center</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
               <object class="GtkButton" id="save_mask_btn">
                 <property name="label" translatable="yes">Save</property>
                 <property name="visible">True</property>
