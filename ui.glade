@@ -587,27 +587,27 @@
   <object class="GtkImage" id="next_icon">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="pixbuf">next.svg</property>
+    <property name="pixbuf">resource:///com/example/deep_scan/next.svg</property>
   </object>
   <object class="GtkImage" id="previous_icon">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="pixbuf">previous.svg</property>
+    <property name="pixbuf">resource:///com/example/deep_scan/previous.svg</property>
   </object>
   <object class="GtkImage" id="reset_icon">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="pixbuf">reset.svg</property>
+    <property name="pixbuf">resource:///com/example/deep_scan/reset.svg</property>
   </object>
   <object class="GtkImage" id="round_brush_icon">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="pixbuf">round-brush.svg</property>
+    <property name="pixbuf">resource:///com/example/deep_scan/round-brush.svg</property>
   </object>
   <object class="GtkImage" id="select_image_icon">
     <property name="visible">True</property>
     <property name="can-focus">False</property>
-    <property name="pixbuf">select.svg</property>
+    <property name="pixbuf">resource:///com/example/deep_scan/select.svg</property>
   </object>
   <object class="GtkWindow" id="draw_window">
     <property name="can-focus">False</property>

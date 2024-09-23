@@ -1,0 +1,9 @@
+<gresources>
+  <gresource prefix="/com/example/deep_scan">
+    <file>previous.svg</file>
+    <file>next.svg</file>
+    <file>select.svg</file>
+    <file>round-brush.svg</file>
+    <file>reset.svg</file>
+  </gresource>
+</gresources>
