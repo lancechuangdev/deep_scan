@@ -14,6 +14,7 @@ public:
 
 protected:
     // Drawing image name, navigation and actions
+    Gtk::ProgressBar *m_labelingPb;
     Gtk::Label *m_imageNameLbl;
     Gtk::Button *m_previousImageBtn;
     Gtk::Label *m_imagePagingLbl;
@@ -62,6 +63,7 @@ protected:
     void LoadMaskBufferFromFile(const std::string &filename);
     void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
     void drawOnMask();
+    void UpdateMaskAlpha(gint32 alpha);
 
 private:
     Glib::RefPtr<Gtk::Builder> m_refGlade;

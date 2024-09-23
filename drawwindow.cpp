@@ -1,7 +1,7 @@
 #include "drawwindow.h"
 
 // Get a list of image files in the selected folder
-std::vector<std::string> get_image_files_in_folder(const std::string &folder_path)
+std::vector<std::string> getImageFiles(const std::string &folder_path)
 {
     std::vector<std::string> image_files;
     Glib::Dir dir(folder_path);
@@ -16,6 +16,13 @@ std::vector<std::string> get_image_files_in_folder(const std::string &folder_pat
 
         // Get the file extension by extracting the base name and finding the dot
         std::string basename = Glib::path_get_basename(file);
+
+        // Skip files that end with '_mask'
+        if (basename.find("_mask") != std::string::npos)
+        {
+            continue; // Skip mask files
+        }
+
         std::string::size_type idx = basename.rfind('.');
 
         if (idx != std::string::npos)
@@ -32,6 +39,41 @@ std::vector<std::string> get_image_files_in_folder(const std::string &folder_pat
     }
 
     return image_files;
+}
+
+double calculateLabelingProgress(const std::string &folder_path)
+{
+    int total_images = 0;
+    int masked_images = 0;
+
+    // Iterate over files in the folder
+    for (const auto &entry : std::filesystem::directory_iterator(folder_path))
+    {
+        // Check if it's a regular file
+        if (entry.is_regular_file())
+        {
+            std::string file_name = entry.path().filename().string();
+
+            // Check if it's an image file (excluding masks)
+            if (file_name.find("_mask") == std::string::npos)
+            {
+                total_images++;
+                // Check if corresponding mask file exists
+                std::string mask_file = entry.path().stem().string() + "_mask" + entry.path().extension().string();
+                if (std::filesystem::exists(folder_path + "/" + mask_file))
+                {
+                    masked_images++;
+                }
+            }
+        }
+    }
+
+    // Calculate the progress as a percentage
+    if (total_images == 0)
+    {
+        return 0.0; // To avoid division by zero
+    }
+    return static_cast<double>(masked_images) / total_images;
 }
 
 std::string get_extension(const std::string &filename)
@@ -65,6 +107,8 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
     : Gtk::Window(cobject), m_refGlade(refGlade)
 {
     signal_show().connect(sigc::mem_fun(*this, &DrawWindow::on_window_shown));
+
+    m_refGlade->get_widget("label_pb", m_labelingPb);
 
     m_refGlade->get_widget("mask_drawing_area", m_drawingArea);
     if (m_drawingArea)
@@ -135,19 +179,14 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
     }
 }
 
-DrawWindow *DrawWindow::create(const std::string &gladeFailePath)
+DrawWindow *DrawWindow::create(const std::string &gladeFilePath)
 {
     // Load the Glade file
-    auto refBuilder = Gtk::Builder::create_from_file(gladeFailePath);
+    auto refBuilder = Gtk::Builder::create_from_file(gladeFilePath);
 
     // Get the window object from the Glade file
     DrawWindow *window = nullptr;
     refBuilder->get_widget_derived("draw_window", window);
-
-    if (window)
-    {
-        window->set_title("Label Images");
-    }
 
     return window;
 }
@@ -155,26 +194,31 @@ DrawWindow *DrawWindow::create(const std::string &gladeFailePath)
 void DrawWindow::setImageLabelingPath(const std::string &path)
 {
     m_imageLabelingPath = path;
-    m_imageLabelingQueue = get_image_files_in_folder(path);
+    m_imageLabelingQueue = getImageFiles(path);
     m_imageLabelingIndex = 0;
 }
 
 void DrawWindow::on_window_shown()
 {
+    this->set_title(Glib::ustring::compose("Label Images in %1", m_imageLabelingPath));
+
+    // Update the labeling progress bar
+    auto progress = calculateLabelingProgress(m_imageLabelingPath);
+    if (m_labelingPb)
+    {
+        m_labelingPb->set_fraction(progress);
+    }
+
     // Set image name label
     if (m_imageNameLbl)
     {
-        m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+        std::filesystem::path path(m_imageLabelingQueue[m_imageLabelingIndex]);
+        std::string file_name = path.filename().string();
+        m_imageNameLbl->set_text(Glib::ustring(file_name));
     }
     if (m_imagePagingLbl)
     {
         m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_imageLabelingIndex + 1, m_imageLabelingQueue.size()));
-    }
-
-    // Load the first image buffer to drawing area
-    if (!m_imageLabelingQueue.empty())
-    {
-        loadDrawingAreaBuffer();
     }
 
     // Update navigation buttons status
@@ -186,6 +230,12 @@ void DrawWindow::on_window_shown()
     if (m_nextImageBtn)
     {
         m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
+    }
+
+    // Load the first image buffer to drawing area
+    if (!m_imageLabelingQueue.empty())
+    {
+        loadDrawingAreaBuffer();
     }
 }
 
@@ -267,17 +317,15 @@ void DrawWindow::loadDrawingAreaBuffer(bool showMask)
         m_drawingArea->set_size_request(width, height);
     }
 
+    // Load mask pix buf
+    InitializeMaskPixBuf(width, height);
+
     if (showMask)
     {
         auto maskFile = constructMaskName(m_imageLabelingQueue[m_imageLabelingIndex]);
         if (std::filesystem::exists(maskFile))
         {
             LoadMaskBufferFromFile(maskFile);
-        }
-        else
-        {
-            // Load mask pix buf
-            InitializeMaskPixBuf(width, height);
         }
     }
 
@@ -338,6 +386,10 @@ void DrawWindow::LoadMaskBufferFromFile(const std::string &filename)
                     // Set alpha to 0 (fully transparent)
                     pixel[3] = 0;
                 }
+                else if (pixel[0] > 0 && pixel[1] > 0 && pixel[2] > 0)
+                {
+                    pixel[3] = m_brushAlpha * 255;
+                }
             }
         }
     }
@@ -358,7 +410,9 @@ void DrawWindow::onPreviousImageClicked()
     m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
     if (m_imageNameLbl)
     {
-        m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+        std::filesystem::path path(m_imageLabelingQueue[m_imageLabelingIndex]);
+        std::string file_name = path.filename().string();
+        m_imageNameLbl->set_text(Glib::ustring(file_name));
     }
     if (m_imagePagingLbl)
     {
@@ -377,7 +431,9 @@ void DrawWindow::onNextImageClicked()
     m_nextImageBtn->set_sensitive(m_imageLabelingIndex < m_imageLabelingQueue.size() - 1);
     if (m_imageNameLbl)
     {
-        m_imageNameLbl->set_text(Glib::ustring(m_imageLabelingQueue[m_imageLabelingIndex]));
+        std::filesystem::path path(m_imageLabelingQueue[m_imageLabelingIndex]);
+        std::string file_name = path.filename().string();
+        m_imageNameLbl->set_text(Glib::ustring(file_name));
     }
     if (m_imagePagingLbl)
     {
@@ -424,6 +480,12 @@ void DrawWindow::onSaveMaskClicked()
 {
     auto filename = constructMaskName(m_imageLabelingQueue[m_imageLabelingIndex]);
     saveMaskAsBinary(filename);
+
+    auto progress = calculateLabelingProgress(m_imageLabelingPath);
+    if (m_labelingPb)
+    {
+        m_labelingPb->set_fraction(progress);
+    }
 }
 
 void DrawWindow::saveMaskAsBinary(const std::string &filename)
@@ -499,6 +561,8 @@ bool DrawWindow::onScrollEvent(GdkEventScroll *scroll_event)
             {
                 m_brushAlpha = std::max(m_brushAlpha - 0.1, 0.1); // Min alpha is 0.1
             }
+
+            UpdateMaskAlpha(m_brushAlpha * 255);
         }
         else
         {
@@ -678,4 +742,33 @@ void DrawWindow::drawOnMask()
 
     // Trigger a redraw of the drawing area
     m_drawingArea->queue_draw();
+}
+
+void DrawWindow::UpdateMaskAlpha(gint32 alpha)
+{
+    if (!m_maskPixbuf)
+        return;
+
+    // Get pixbuf properties
+    int width = m_maskPixbuf->get_width();
+    int height = m_maskPixbuf->get_height();
+    int rowstride = m_maskPixbuf->get_rowstride();
+    int n_channels = m_maskPixbuf->get_n_channels();
+
+    // Get pointer to the pixel data
+    guchar *pixels = m_maskPixbuf->get_pixels();
+
+    // Iterate through the pixels and modify the alpha channel
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            guchar *pixel = pixels + y * rowstride + x * n_channels;
+
+            if (pixel[3] > 0)
+            {
+                pixel[3] = alpha;
+            }
+        }
+    }
 }

@@ -107,9 +107,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
 
             m_imageLabelingPath = folder;
 
-            // Get all image files from the folder
-            //m_imageLabelingQueue = get_image_files_in_folder(folder);
-
             // Enable the start button if a folder is selected
             m_openDrawingDialogBtn->set_sensitive(!folder.empty()); });
     }
