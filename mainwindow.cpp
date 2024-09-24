@@ -96,7 +96,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("capture_pb", m_capturePb);
 
     // Image Labelling
-    m_builder->get_widget("load_picker_fcb", m_loadPickerFcb);
+    m_builder->get_widget("labeling_picker_fcb", m_loadPickerFcb);
     if (m_loadPickerFcb)
     {
         // Connect to the file-set signal
