@@ -4,6 +4,7 @@
 #include <iostream>
 #include <filesystem>
 #include <gtkmm.h>
+#include "fileutils.h"
 
 class DrawWindow : public Gtk::Window
 {

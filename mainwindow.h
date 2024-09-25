@@ -6,11 +6,14 @@
 #include "camcols.h"
 #include "framequeue.h"
 #include "drawwindow.h"
+#include "preprocesswindow.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
 #include <future>
 #include <filesystem>
+#include <cstdio>
+#include <fstream>
 
 class MainWindow : public Gtk::Window
 {
@@ -27,13 +30,16 @@ protected:
     Gtk::Button *m_stopBtn;
     Gtk::Button *m_disconnectBtn;
     Gtk::Button *m_openDrawingDialogBtn;
+    Gtk::Button *m_openPreprocessingDialogBtn;
+    Gtk::Button *m_openTrainingDialogBtn;
     Gtk::Label *m_exposureTimeLbl;
     Gtk::Label *m_frameRateLbl;
     Gtk::Label *m_widthLbl;
     Gtk::Label *m_heightLbl;
     Gtk::Label *m_gainLbl;
     Gtk::FileChooserButton *m_capturePickerFcb;
-    Gtk::FileChooserButton *m_loadPickerFcb;
+    Gtk::FileChooserButton *m_labelingPickerFcb;
+    Gtk::FileChooserButton *m_preprocessingPickerFcb;
     Gtk::SpinButton *m_captureDurationSb;
     Gtk::SpinButton *m_captureRateSb;
     Gtk::ProgressBar *m_capturePb;
@@ -44,8 +50,10 @@ protected:
     void onStartClicked();
     void onStopClicked();
     void onDisconnectClicked();
-    void onOpenDrawingClicked();
     void onTreeviewSelectionChanged();
+    void onOpenDrawingClicked();
+    void onOpenPreprocessingClicked();
+    void onOpenTrainingClicked();
 
 private:
     Glib::RefPtr<Gtk::Builder> m_builder;
@@ -62,6 +70,7 @@ private:
     FrameQueue m_frameQueue;
     std::atomic<bool> m_running;
     std::string m_imageLabelingPath;
+    std::string m_preprocessImagePath;
     void populateDeviceSettings();
     void clearDeviceSettings();
 };

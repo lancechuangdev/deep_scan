@@ -1,7 +1,5 @@
 #include "mainwindow.h"
 
-
-
 MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder)
     : Gtk::Window(obj),
       m_builder(refBuilder),
@@ -23,11 +21,15 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("stop_btn", m_stopBtn);
     m_builder->get_widget("disconnect_btn", m_disconnectBtn);
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
+    m_builder->get_widget("open_preprocessing_btn", m_openPreprocessingDialogBtn);
+    m_builder->get_widget("open_training_btn", m_openTrainingDialogBtn);
 
     // Disable the start button initially
     m_connectBtn->set_sensitive(false);
     m_startBtn->set_sensitive(false);
     m_openDrawingDialogBtn->set_sensitive(false);
+    m_openPreprocessingDialogBtn->set_sensitive(false);
+    m_openTrainingDialogBtn->set_sensitive(false);
 
     if (m_discoverBtn)
     {
@@ -52,6 +54,14 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     if (m_openDrawingDialogBtn)
     {
         m_openDrawingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenDrawingClicked));
+    }
+    if (m_openPreprocessingDialogBtn)
+    {
+        m_openPreprocessingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenPreprocessingClicked));
+    }
+    if (m_openTrainingDialogBtn)
+    {
+        m_openTrainingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenTrainingClicked));
     }
 
     m_builder->get_widget("camera_list", m_camTreeView);
@@ -96,19 +106,36 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("capture_pb", m_capturePb);
 
     // Image Labelling
-    m_builder->get_widget("labeling_picker_fcb", m_loadPickerFcb);
-    if (m_loadPickerFcb)
+    m_builder->get_widget("labeling_picker_fcb", m_labelingPickerFcb);
+    if (m_labelingPickerFcb)
     {
         // Connect to the file-set signal
-        m_loadPickerFcb->signal_selection_changed().connect([this]()
-                                                            {
+        m_labelingPickerFcb->signal_selection_changed().connect([this]()
+        {
             // Get the selected folder path
-            auto folder = m_loadPickerFcb->get_filename();
+            auto folder = m_labelingPickerFcb->get_filename();
 
             m_imageLabelingPath = folder;
 
             // Enable the start button if a folder is selected
-            m_openDrawingDialogBtn->set_sensitive(!folder.empty()); });
+            m_openDrawingDialogBtn->set_sensitive(!folder.empty()); 
+        });
+    }
+
+    m_builder->get_widget("preprocessing_picker_fcb", m_preprocessingPickerFcb);
+    if (m_preprocessingPickerFcb)
+    {
+        // Connect to the file-set signal
+        m_preprocessingPickerFcb->signal_selection_changed().connect([this]()
+        {
+            // Get the selected folder path
+            auto folder = m_preprocessingPickerFcb->get_filename();
+
+            m_preprocessImagePath = folder;
+
+            // Enable the start button if a folder is selected
+            m_openPreprocessingDialogBtn->set_sensitive(!folder.empty());
+        });
     }
 }
 
@@ -623,12 +650,78 @@ void MainWindow::onDisconnectClicked()
 }
 
 void MainWindow::onOpenDrawingClicked()
-{ 
+{
     // Create the DrawWindow from the Glade file
-    DrawWindow* drawWindow = DrawWindow::create("../ui.glade");
-    
-    if (drawWindow) {
+    DrawWindow *drawWindow = DrawWindow::create("../ui.glade");
+
+    if (drawWindow)
+    {
         drawWindow->setImageLabelingPath(m_imageLabelingPath);
-        drawWindow->present();  // Show the window
+        drawWindow->present(); // Show the window
     }
+}
+
+void MainWindow::onOpenPreprocessingClicked()
+{
+    PreprocessWindow *PreprocessWindow = PreprocessWindow::create("../ui.glade");
+
+    if (PreprocessWindow)
+    {
+        PreprocessWindow->setImagePreprocessingPath(m_preprocessImagePath);
+        PreprocessWindow->present(); // Show the window
+    }
+}
+
+void MainWindow::onOpenTrainingClicked()
+{
+    // Command to execute the Jupyter notebook in the parent directory
+    const char *cmd = "jupyter nbconvert --to notebook --execute ../test_notebook.ipynb --output executed_notebook.ipynb";
+
+    // Open a pipe to the command
+    FILE *pipe = popen(cmd, "r");
+    if (!pipe)
+    {
+        std::cerr << "Failed to run command\n";
+    }
+
+    // Buffer to hold each line of output
+    std::array<char, 128> buffer;
+    std::string result;
+
+    // Read the output from the pipe line by line (nbconvert output, not notebook)
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
+    {
+        std::cout << buffer.data(); // Print each line to the console
+        result += buffer.data();    // Append to the result string if needed
+    }
+
+    // Close the pipe
+    int returnCode = pclose(pipe);
+    if (returnCode != 0)
+    {
+        std::cerr << "Command failed with return code " << returnCode << std::endl;
+    }
+
+    // Now read the executed notebook file (executed_notebook.ipynb)
+    std::ifstream notebookFile("../executed_notebook.ipynb");
+    if (!notebookFile.is_open())
+    {
+        std::cerr << "Failed to open the executed notebook\n";
+    }
+
+    // // Parse the JSON content of the notebook
+    // nlohmann::json notebookJson;
+    // notebookFile >> notebookJson;
+
+    // // Traverse the notebook to find the cell outputs
+    // for (const auto& cell : notebookJson["cells"]) {
+    //     if (cell.contains("outputs")) {
+    //         for (const auto& output : cell["outputs"]) {
+    //             if (output.contains("text")) {
+    //                 // Print the output text from each cell
+    //                 std::cout << output["text"] << std::endl;
+    //             }
+    //         }
+    //     }
+    // }
 }
