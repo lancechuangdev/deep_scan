@@ -63,6 +63,7 @@
         "codecvt": "cpp",
         "future": "cpp",
         "iomanip": "cpp",
-        "fstream": "cpp"
+        "fstream": "cpp",
+        "regex": "cpp"
     }
 }
