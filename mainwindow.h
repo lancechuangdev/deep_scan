@@ -30,7 +30,7 @@ protected:
     Gtk::Button *m_stopBtn;
     Gtk::Button *m_disconnectBtn;
     Gtk::Button *m_openDrawingDialogBtn;
-    Gtk::Button *m_openPreprocessingDialogBtn;
+    Gtk::Button *m_openPatchDialogBtn;
     Gtk::Button *m_openTrainingDialogBtn;
     Gtk::Label *m_exposureTimeLbl;
     Gtk::Label *m_frameRateLbl;
@@ -39,7 +39,7 @@ protected:
     Gtk::Label *m_gainLbl;
     Gtk::FileChooserButton *m_capturePickerFcb;
     Gtk::FileChooserButton *m_labelingPickerFcb;
-    Gtk::FileChooserButton *m_preprocessingPickerFcb;
+    Gtk::FileChooserButton *m_patchPickerFcb;
     Gtk::SpinButton *m_captureDurationSb;
     Gtk::SpinButton *m_captureRateSb;
     Gtk::ProgressBar *m_capturePb;

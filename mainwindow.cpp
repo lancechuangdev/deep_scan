@@ -21,14 +21,14 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("stop_btn", m_stopBtn);
     m_builder->get_widget("disconnect_btn", m_disconnectBtn);
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
-    m_builder->get_widget("open_preprocessing_btn", m_openPreprocessingDialogBtn);
+    m_builder->get_widget("open_patch_btn", m_openPatchDialogBtn);
     m_builder->get_widget("open_training_btn", m_openTrainingDialogBtn);
 
     // Disable the start button initially
     m_connectBtn->set_sensitive(false);
     m_startBtn->set_sensitive(false);
     m_openDrawingDialogBtn->set_sensitive(false);
-    m_openPreprocessingDialogBtn->set_sensitive(false);
+    m_openPatchDialogBtn->set_sensitive(false);
     m_openTrainingDialogBtn->set_sensitive(false);
 
     if (m_discoverBtn)
@@ -55,9 +55,9 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     {
         m_openDrawingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenDrawingClicked));
     }
-    if (m_openPreprocessingDialogBtn)
+    if (m_openPatchDialogBtn)
     {
-        m_openPreprocessingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenPreprocessingClicked));
+        m_openPatchDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenPreprocessingClicked));
     }
     if (m_openTrainingDialogBtn)
     {
@@ -122,19 +122,19 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         });
     }
 
-    m_builder->get_widget("preprocessing_picker_fcb", m_preprocessingPickerFcb);
-    if (m_preprocessingPickerFcb)
+    m_builder->get_widget("patch_picker_fcb", m_patchPickerFcb);
+    if (m_patchPickerFcb)
     {
         // Connect to the file-set signal
-        m_preprocessingPickerFcb->signal_selection_changed().connect([this]()
+        m_patchPickerFcb->signal_selection_changed().connect([this]()
         {
             // Get the selected folder path
-            auto folder = m_preprocessingPickerFcb->get_filename();
+            auto folder = m_patchPickerFcb->get_filename();
 
             m_preprocessImagePath = folder;
 
             // Enable the start button if a folder is selected
-            m_openPreprocessingDialogBtn->set_sensitive(!folder.empty());
+            m_openPatchDialogBtn->set_sensitive(!folder.empty());
         });
     }
 }

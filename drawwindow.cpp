@@ -35,33 +35,6 @@ double calculateLabelingProgress(const std::string &folder_path)
     return static_cast<double>(masked_images) / total_images;
 }
 
-std::string get_extension(const std::string &filename)
-{
-    size_t dot_pos = filename.find_last_of(".");
-    if (dot_pos == std::string::npos)
-    {
-        return ""; // No extension found
-    }
-    return filename.substr(dot_pos); // Includes the dot (e.g., ".jpg")
-}
-
-std::string constructMaskName(const std::string &imagePath)
-{
-    // Get the base name (filename with extension)
-    std::string baseName = Glib::path_get_basename(imagePath); // Get filename with extension
-    std::string extension = get_extension(baseName);           // Get extension (e.g., .jpg)
-
-    // Remove the extension from base name
-    baseName = baseName.substr(0, baseName.length() - extension.length());
-
-    // Construct the new name by appending '_mask'
-    std::string maskName = baseName + "_mask" + extension;
-
-    // Return the new full path with '_mask' appended
-    std::string directory = Glib::path_get_dirname(imagePath);
-    return Glib::build_filename(directory, maskName);
-}
-
 DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade)
     : Gtk::Window(cobject), m_refGlade(refGlade)
 {
@@ -281,7 +254,7 @@ void DrawWindow::loadDrawingAreaBuffer(bool showMask)
 
     if (showMask)
     {
-        auto maskFile = constructMaskName(m_imageLabelingQueue[m_imageLabelingIndex]);
+        auto maskFile = FileUtils::constructMaskPath(m_imageLabelingQueue[m_imageLabelingIndex]);
         if (std::filesystem::exists(maskFile))
         {
             LoadMaskBufferFromFile(maskFile);
@@ -437,7 +410,7 @@ void DrawWindow::onResetMaskClicked()
 
 void DrawWindow::onSaveMaskClicked()
 {
-    auto filename = constructMaskName(m_imageLabelingQueue[m_imageLabelingIndex]);
+    auto filename = FileUtils::constructMaskPath(m_imageLabelingQueue[m_imageLabelingIndex]);
     saveMaskAsBinary(filename);
 
     auto progress = calculateLabelingProgress(m_imageLabelingPath);
