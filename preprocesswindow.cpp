@@ -111,6 +111,11 @@ void PreprocessWindow::on_window_shown()
 
 void PreprocessWindow::loadPatchThumbnails()
 {
+    // Clear the thumbsnails before loading
+    for (auto* child : m_thumbnailsListbox->get_children()) {
+        m_thumbnailsListbox->remove(*child);
+    }
+
     std::filesystem::path path(m_preprocessImageQueue[m_preprocessImageIndex]);
     std::string parent = Glib::path_get_dirname(path);
     if (FileUtils::directoryExists(parent, "images") && FileUtils::directoryExists(parent, "masks"))
@@ -136,7 +141,7 @@ void PreprocessWindow::loadPatchThumbnails()
         {
             return;
         }
-        
+
         std::vector<std::string> sortedImages = images;
         std::vector<std::string> sortedMasks = masks;
 
@@ -265,10 +270,48 @@ void PreprocessWindow::LoadMaskBufferFromFile(const std::string &filename)
 
 void PreprocessWindow::onPreviousImageClicked()
 {
+    m_preprocessImageIndex = std::max(static_cast<size_t>(0), m_preprocessImageIndex - 1);
+    m_previousImageBtn->set_sensitive(m_preprocessImageIndex > 0);
+    m_nextImageBtn->set_sensitive(m_preprocessImageIndex < m_preprocessImageQueue.size() - 1);
+    if (m_imageNameLbl)
+    {
+        std::filesystem::path path(m_preprocessImageQueue[m_preprocessImageIndex]);
+        std::string file_name = path.filename().string();
+        m_imageNameLbl->set_text(Glib::ustring(file_name));
+    }
+    if (m_imagePagingLbl)
+    {
+        m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_preprocessImageIndex + 1, m_preprocessImageQueue.size()));
+    }
+
+    if (!m_preprocessImageQueue.empty())
+    {
+        loadDrawingAreaBuffer();
+        loadPatchThumbnails();
+    }
 }
 
 void PreprocessWindow::onNextImageClicked()
 {
+    m_preprocessImageIndex = std::min(m_preprocessImageQueue.size() - 1, m_preprocessImageIndex + 1);
+    m_previousImageBtn->set_sensitive(m_preprocessImageIndex > 0);
+    m_nextImageBtn->set_sensitive(m_preprocessImageIndex < m_preprocessImageQueue.size() - 1);
+    if (m_imageNameLbl)
+    {
+        std::filesystem::path path(m_preprocessImageQueue[m_preprocessImageIndex]);
+        std::string file_name = path.filename().string();
+        m_imageNameLbl->set_text(Glib::ustring(file_name));
+    }
+    if (m_imagePagingLbl)
+    {
+        m_imagePagingLbl->set_text(Glib::ustring::compose("%1 of %2", m_preprocessImageIndex + 1, m_preprocessImageQueue.size()));
+    }
+
+    if (!m_preprocessImageQueue.empty())
+    {
+        loadDrawingAreaBuffer();
+        loadPatchThumbnails();
+    }
 }
 
 void PreprocessWindow::onSelectToggled()
