@@ -819,16 +819,6 @@ void PreprocessWindow::addThumbnailsToList(const std::string &image, const std::
     // Add the mask image to the row box
     row_box->pack_start(*mask_image, Gtk::PACK_SHRINK);
 
-    // Add a delete button to the row
-    auto delete_button = Gtk::make_managed<Gtk::Button>("Delete");
-    delete_button->set_margin_start(5);
-    delete_button->set_margin_end(5);
-    delete_button->set_margin_top(5);
-    delete_button->set_margin_bottom(5);
-    delete_button->signal_clicked().connect([this, row_box, image, mask]()
-                                            { onDeleteRow(row_box, image, mask); });
-    row_box->pack_start(*delete_button, Gtk::PACK_SHRINK);
-
     // Add a show button to the row
     auto view_button = Gtk::make_managed<Gtk::Button>("view");
     view_button->set_margin_start(5);
@@ -838,6 +828,16 @@ void PreprocessWindow::addThumbnailsToList(const std::string &image, const std::
     view_button->signal_clicked().connect([this, row_box, image]()
                                             { onViewPatch(row_box, image); });
     row_box->pack_start(*view_button, Gtk::PACK_SHRINK);
+
+    // Add a delete button to the row
+    auto delete_button = Gtk::make_managed<Gtk::Button>("Delete");
+    delete_button->set_margin_start(5);
+    delete_button->set_margin_end(5);
+    delete_button->set_margin_top(5);
+    delete_button->set_margin_bottom(5);
+    delete_button->signal_clicked().connect([this, row_box, image, mask]()
+                                            { onDeleteRow(row_box, image, mask); });
+    row_box->pack_start(*delete_button, Gtk::PACK_SHRINK);
 
     // Create a Gtk::ListBoxRow to wrap the box
     auto listbox_row = Gtk::make_managed<Gtk::ListBoxRow>();
