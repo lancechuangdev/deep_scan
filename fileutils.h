@@ -19,6 +19,7 @@ public:
     static std::string constructMaskName(const std::string &imageName);
     static std::string constructPatchName(const std::string &imagePath, const std::string &extension);
     static std::string generateRandomString(size_t length);
+    static std::string replaceExtension(const std::string &filename, const std::string &newExtension);
     static bool directoryExists(const std::string& parent, const std::string& sub);
     static bool createSubdirectory(const std::string& parent, const std::string& sub);
 };

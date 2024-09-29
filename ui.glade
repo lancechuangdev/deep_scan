@@ -1069,6 +1069,27 @@
       </object>
     </child>
   </object>
+  <object class="GtkAdjustment" id="patch_height_adjustment">
+    <property name="lower">1</property>
+    <property name="upper">10</property>
+    <property name="value">1</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="patch_size_adjustment">
+    <property name="lower">56</property>
+    <property name="upper">1024</property>
+    <property name="value">512</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
+  <object class="GtkAdjustment" id="patch_width_adjustment">
+    <property name="lower">1</property>
+    <property name="upper">10</property>
+    <property name="value">1</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
   <object class="GtkWindow" id="preprocess_window">
     <property name="can-focus">False</property>
     <property name="default-width">1028</property>
@@ -1322,9 +1343,11 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkSpinButton">
+                          <object class="GtkSpinButton" id="patch_size_sb">
                             <property name="visible">True</property>
                             <property name="can-focus">True</property>
+                            <property name="adjustment">patch_size_adjustment</property>
+                            <property name="value">512</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -1358,9 +1381,11 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkSpinButton">
+                          <object class="GtkSpinButton" id="patch_width_sb">
                             <property name="visible">True</property>
                             <property name="can-focus">True</property>
+                            <property name="adjustment">patch_width_adjustment</property>
+                            <property name="value">1</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -1394,9 +1419,11 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkSpinButton">
+                          <object class="GtkSpinButton" id="patch_height_sb">
                             <property name="visible">True</property>
                             <property name="can-focus">True</property>
+                            <property name="adjustment">patch_height_adjustment</property>
+                            <property name="value">1</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>

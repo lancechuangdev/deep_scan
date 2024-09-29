@@ -4,6 +4,7 @@
 #include <gtkmm.h>
 #include <iostream>
 #include "fileutils.h"
+#include <fstream>
 
 class PreprocessWindow : public Gtk::Window
 {
@@ -22,6 +23,9 @@ protected:
     Gtk::Button *m_nextImageBtn;
     Gtk::DrawingArea *m_drawingArea;
     Gtk::ListBox *m_thumbnailsListbox;
+    Gtk::SpinButton *m_patchSizeSb;
+    Gtk::SpinButton *m_patchWidthSb;
+    Gtk::SpinButton *m_patchHeightSb;
 
     void on_window_shown();
     void onPreviousImageClicked();
@@ -30,7 +34,8 @@ protected:
     void onSelectedAreaToggled();
     bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr);
     void onDeleteRow(Gtk::Box* row_box, const std::string& image, const std::string& mask);
-    
+    void onViewPatch(Gtk::Box *row_box, const std::string &image);
+
     // Mouse events
     bool onScrollEvent(GdkEventScroll *scroll_event);
     bool onButtonPressEvent(GdkEventButton *button_event);
@@ -48,8 +53,10 @@ protected:
     void UpdateMaskAlpha(gint32 alpha);
     void drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr);
     void drawOnSelectedROI();
-    bool saveImagePatch(const std::string &filename);
-    void saveMaskAsBinary(const std::string &filename);
+    bool loadMetadata(const std::string &metadataFilename, int &patchSize, double &top, double &left);
+    bool saveMetadata(const std::string &metadataFilename, int patchSize, double top, double left);
+    bool saveImagePatch(const std::string &filename, double top, double left);
+    void saveMaskAsBinary(const std::string &filename, double top, double left);
     void addThumbnailsToList(const std::string& image, const std::string& mask);
 
 private:
@@ -69,6 +76,10 @@ private:
     double m_brushAlpha = 0.5;   // Opacity of the brush cursor
     double m_brushX;             // Brush cursor position (x)
     double m_brushY;             // Brush cursor position (y)
+
+    int m_patchSize = 512;
+    int m_patchWidth = 1;
+    int m_patchHeight = 1;
 
     bool m_isDragging = false;      // Track whether the user is dragging
     bool m_ctrlPressed = false; // Flag to check if Ctrl key is pressed

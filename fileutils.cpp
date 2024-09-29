@@ -169,3 +169,17 @@ bool FileUtils::createSubdirectory(const std::string& parent, const std::string&
         }
     }
 }
+
+std::string FileUtils::replaceExtension(const std::string &filename, const std::string &newExtension)
+{
+    // Find the last occurrence of the dot character
+    size_t dotPos = filename.find_last_of('.');
+    
+    // If there is no dot, just return the filename with the new extension
+    if (dotPos == std::string::npos) {
+        return filename + "." + newExtension;
+    }
+
+    // Replace the existing extension with the new one
+    return filename.substr(0, dotPos) + "." + newExtension;
+}

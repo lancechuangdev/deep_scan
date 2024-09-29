@@ -52,6 +52,24 @@ PreprocessWindow::PreprocessWindow(BaseObjectType *cobject, const Glib::RefPtr<G
         m_drawingArea->add_events(Gdk::KEY_PRESS_MASK);
     }
 
+    m_refGlade->get_widget("patch_size_sb", m_patchSizeSb);
+    if (m_patchSizeSb)
+    {
+        m_patchSizeSb->signal_value_changed().connect([this]()
+                                                      { m_patchSize = static_cast<int>(m_patchSizeSb->get_value()); });
+    }
+    m_refGlade->get_widget("patch_width_sb", m_patchWidthSb);
+    if (m_patchWidthSb)
+    {
+        m_patchWidthSb->signal_value_changed().connect([this]()
+                                                       { m_patchWidth = static_cast<int>(m_patchWidthSb->get_value()); });
+    }
+    m_refGlade->get_widget("patch_height_sb", m_patchHeightSb);
+    if (m_patchHeightSb)
+    {
+        m_patchHeightSb->signal_value_changed().connect([this]()
+                                                        { m_patchHeight = static_cast<int>(m_patchHeightSb->get_value()); });
+    }
     m_refGlade->get_widget("thumbnails_listbox", m_thumbnailsListbox);
 }
 
@@ -112,7 +130,8 @@ void PreprocessWindow::on_window_shown()
 void PreprocessWindow::loadPatchThumbnails()
 {
     // Clear the thumbsnails before loading
-    for (auto* child : m_thumbnailsListbox->get_children()) {
+    for (auto *child : m_thumbnailsListbox->get_children())
+    {
         m_thumbnailsListbox->remove(*child);
     }
 
@@ -128,15 +147,15 @@ void PreprocessWindow::loadPatchThumbnails()
 
         // Find all images in 'images' dir that matches this pattern 'baseName_<any characters>.extension'
         std::string imagesDir = Glib::build_filename(parent, "images");
-        std::regex imagesPattern(baseName + "_.*\\..*");  // Matches 'baseName_<any characters>.extension'
+        std::regex imagesPattern(baseName + "_.*\\.(png|jpe?g|bmp)"); // Matches 'baseName_<any characters>.extension'
         auto images = FileUtils::findMatchingImages(imagesDir, baseName, imagesPattern);
 
         // Find all images in 'masks' dir that matches this pattern 'baseName_<any characters>_mask.extension'
         std::string masksDir = Glib::build_filename(parent, "masks");
-        std::regex masksPattern(baseName + "_.*_mask\\..*");  // Convert the string to a regex
+        std::regex masksPattern(baseName + "_.*_mask\\..*"); // Convert the string to a regex
         auto masks = FileUtils::findMatchingImages(masksDir, baseName, masksPattern);
 
-        // Sort images and masks by name then add a pair of image/mask by calling void PreprocessWindow::addThumbnailsToList(const std::string &image, const std::string &mask)
+        // Sort images and masks by name then add a pair of image/mask
         if (images.size() != masks.size())
         {
             return;
@@ -149,12 +168,13 @@ void PreprocessWindow::loadPatchThumbnails()
         std::sort(sortedMasks.begin(), sortedMasks.end());
 
         // Iterate over both sorted images and masks
-        for (size_t i = 0; i < sortedImages.size() && i < sortedMasks.size(); ++i) {
-            const std::string& image = sortedImages[i];
-            const std::string& mask = sortedMasks[i];
+        for (size_t i = 0; i < sortedImages.size() && i < sortedMasks.size(); ++i)
+        {
+            const std::string &image = sortedImages[i];
+            const std::string &mask = sortedMasks[i];
 
             // Assuming the masks have the correct corresponding order after sorting
-            PreprocessWindow::addThumbnailsToList(image, mask);
+            addThumbnailsToList(image, mask);
         }
     }
 }
@@ -368,21 +388,55 @@ void PreprocessWindow::drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr)
 {
     if (m_showPatchCursor)
     {
-        // cr->set_source_rgba(255, 255, 255, m_brushAlpha);
-        // cr->arc(m_brushX, m_brushY, m_brushRadius, 0, 2 * M_PI);
-        // cr->fill();
+        // Calculate the top-left corner of the big rectangle
+        int width = m_patchSize * m_patchWidth;
+        int height = m_patchSize * m_patchHeight;
+        double rect_x = m_brushX - width;
+        double rect_y = m_brushY - height;
 
-        // Calculate the top-left corner of the square so that the bottom-right corner is at the mouse position
-        double square_x = m_brushX - 512;
-        double square_y = m_brushY - 512;
-
-        // Set line width and color for the square outline
-        cr->set_line_width(2.0);
+        // Set line width and color for the solid square outline
         cr->set_source_rgb(1.0, 0.0, 0.0); // Red color for the outline
 
-        // Draw the square outline
-        cr->rectangle(square_x, square_y, 512, 512);
-        cr->stroke();
+        // Set dash pattern for dotted lines
+        std::vector<double> dashes = {5.0, 5.0}; // 5 pixels on, 5 pixels off
+        cr->set_dash(dashes, 0);                 // Apply dash pattern
+
+        // Draw the smaller squares with dotted lines within the big rectangle
+        for (int i = 0; i < m_patchWidth; ++i)
+        {
+            for (int j = 0; j < m_patchHeight; ++j)
+            {
+                // Calculate top-left corner of each smaller square
+                double small_rect_x = rect_x + i * m_patchSize;
+                double small_rect_y = rect_y + j * m_patchSize;
+
+                // Draw the top side
+                cr->move_to(small_rect_x, small_rect_y);
+                cr->line_to(small_rect_x + m_patchSize, small_rect_y);
+
+                // Draw the left side
+                cr->move_to(small_rect_x, small_rect_y);
+                cr->line_to(small_rect_x, small_rect_y + m_patchSize);
+
+                // For squares at last column, draw the right edges
+                if (i == m_patchWidth - 1)
+                {
+                    cr->move_to(small_rect_x + m_patchSize, small_rect_y);
+                    cr->line_to(small_rect_x + m_patchSize, small_rect_y + m_patchSize);
+                }
+                // For squares at last row, draw the bottom edges
+                if (j == m_patchHeight - 1)
+                {
+                    cr->move_to(small_rect_x, small_rect_y + m_patchSize);
+                    cr->line_to(small_rect_x + m_patchSize, small_rect_y + m_patchSize);
+                }
+
+                cr->stroke(); // Stroke to render the lines
+            }
+        }
+
+        // Reset the dash pattern to solid line for future drawings
+        cr->set_dash(std::vector<double>(), 0);
     }
 }
 
@@ -403,7 +457,7 @@ bool PreprocessWindow::onScrollEvent(GdkEventScroll *scroll_event)
 
         UpdateMaskAlpha(m_brushAlpha * 255);
     }
-    else
+    else if (!m_isPatchingMode)
     {
         const double zoomStep = 0.1;
 
@@ -464,11 +518,8 @@ bool PreprocessWindow::onButtonPressEvent(GdkEventButton *button_event)
     {
         if (m_isPatchingMode)
         {
-            // Start drawing
-            // m_isDrawing = true;
             m_showPatchCursor = false;
 
-            drawOnSelectedROI();
             // Trigger a redraw of the drawing area
             m_drawingArea->queue_draw();
         }
@@ -490,8 +541,6 @@ bool PreprocessWindow::onButtonReleaseEvent(GdkEventButton *button_event)
     {
         if (m_isPatchingMode)
         {
-            // Stop drawing
-            // m_isDrawing = false;
             m_showPatchCursor = true;
 
             // Save patch (selected ROI) to files
@@ -519,21 +568,27 @@ bool PreprocessWindow::onButtonReleaseEvent(GdkEventButton *button_event)
 
             if (isPatchDirCreated)
             {
-                patchName = FileUtils::constructPatchName(path, ".png");
-                patchPath = Glib::build_filename(dir, "images", patchName);
-                isImageSaved = saveImagePatch(patchPath);
-            }
+                for (int i = m_patchWidth; i > 0; i--)
+                {
+                    for (int j = m_patchHeight; j > 0; j--)
+                    {
+                        patchName = FileUtils::constructPatchName(path, ".png");
+                        patchPath = Glib::build_filename(dir, "images", patchName);
+                        isImageSaved = saveImagePatch(patchPath, m_brushY - m_patchSize * j, m_brushX - m_patchSize * i);
 
-            if (isImageSaved)
-            {
-                std::string maskName = FileUtils::constructMaskName(patchName);
-                maskPath = Glib::build_filename(dir, "masks", maskName);
-                saveMaskAsBinary(maskPath);
-            }
+                        if (isImageSaved)
+                        {
+                            std::string maskName = FileUtils::constructMaskName(patchName);
+                            maskPath = Glib::build_filename(dir, "masks", maskName);
+                            saveMaskAsBinary(maskPath, m_brushY - m_patchSize * j, m_brushX - m_patchSize * i);
+                        }
 
-            if (!patchPath.empty() && !maskPath.empty())
-            {
-                addThumbnailsToList(patchPath, maskPath);
+                        if (!patchPath.empty() && !maskPath.empty())
+                        {
+                            addThumbnailsToList(patchPath, maskPath);
+                        }
+                    }
+                }
             }
 
             m_drawingArea->queue_draw();
@@ -554,14 +609,6 @@ bool PreprocessWindow::onMotionNotifyEvent(GdkEventMotion *motion_event)
     {
         m_brushX = (motion_event->x - m_offsetX) / m_zoomFactor;
         m_brushY = (motion_event->y - m_offsetY) / m_zoomFactor;
-
-        // if (m_isDrawing)
-        // {
-        //     drawOnMask();
-        // }
-        // else
-        // {
-        // }
     }
     else
     {
@@ -605,28 +652,74 @@ bool PreprocessWindow::on_key_release_event(GdkEventKey *key_event)
     return Gtk::Window::on_key_release_event(key_event);
 }
 
-bool PreprocessWindow::saveImagePatch(const std::string &filename)
+bool PreprocessWindow::loadMetadata(const std::string &metadataFilename, int &patchSize, double &top, double &left)
+{
+    std::ifstream metadataFile(metadataFilename);
+    if (!metadataFile.is_open())
+    {
+        std::cerr << "Error: Could not open metadata file for reading." << std::endl;
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(metadataFile, line))
+    {
+        if (line.find("Patch Size:") != std::string::npos)
+        {
+            patchSize = std::stod(line.substr(line.find(':') + 1));
+        }
+        else if (line.find("Top:") != std::string::npos)
+        {
+            top = std::stod(line.substr(line.find(':') + 1));
+        }
+        else if (line.find("Left:") != std::string::npos)
+        {
+            left = std::stod(line.substr(line.find(':') + 1));
+        }
+    }
+
+    metadataFile.close(); // Don't forget to close the file
+    return true;
+}
+
+bool PreprocessWindow::saveMetadata(const std::string &metadataFilename, int patchSize, double top, double left)
+{
+    std::ofstream metadataFile(metadataFilename);
+    if (!metadataFile.is_open())
+    {
+        std::cerr << "Error: Couldn't open metadata file for writing." << std::endl;
+        return false;
+    }
+
+    metadataFile << "Patch Size: " << patchSize << std::endl;
+    metadataFile << "Top: " << top << std::endl;
+    metadataFile << "Left: " << left << std::endl;
+
+    metadataFile.close();
+    return true;
+}
+
+bool PreprocessWindow::saveImagePatch(const std::string &filename, double top, double left)
 {
     // Get the pixel data from the mask pixbuf
     guchar *pixels = m_ImagePixbuf->get_pixels();
-    int width = 512;
-    int height = 512;
     int rowstride = m_ImagePixbuf->get_rowstride();
     int n_channels = m_ImagePixbuf->get_n_channels();
 
     // Create a new grayscale Cairo surface to store the binary mask
-    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_A8, width, height);
+    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_A8, m_patchSize, m_patchSize);
     auto cr = Cairo::Context::create(surface);
 
     // Access the surface's pixel data to manipulate the binary mask
     unsigned char *surface_data = surface->get_data();
 
-    for (int y = 0; y < width; ++y)
+    for (int y = 0; y < m_patchSize; ++y)
     {
-        for (int x = 0; x < height; ++x)
+        for (int x = 0; x < m_patchSize; ++x)
         {
-            int y2 = y + m_brushY - 512;
-            int x2 = x + m_brushX - 512;
+            // Transform to drawing area coordinates
+            int y2 = y + top;
+            int x2 = x + left;
 
             // early quite if the selected ROI is out of boundary
             if (x2 < 0 || x2 > m_maskPixbuf->get_width() || y2 < 0 || y2 > m_maskPixbuf->get_height())
@@ -639,7 +732,8 @@ bool PreprocessWindow::saveImagePatch(const std::string &filename)
             guchar intensity = pixel[0]; // Grayscale intensity (mono8 format)
 
             // Write the grayscale intensity to the Cairo surface
-            surface_data[y * width + x] = intensity;
+            // surface_data[y * m_patchSize + x] = intensity;
+            surface_data[y * m_patchSize + x] = std::min(255, std::max(0, static_cast<int>(intensity)));
         }
     }
 
@@ -649,31 +743,32 @@ bool PreprocessWindow::saveImagePatch(const std::string &filename)
     // Save the surface as a grayscale image (e.g., PNG, BMP, etc.)
     surface->write_to_png(filename);
 
-    return true;
+    // Save image metadata
+    std::string metadatafileName = FileUtils::replaceExtension(filename, "txt");
+    return saveMetadata(metadatafileName, m_patchSize, top, left);
 }
 
-void PreprocessWindow::saveMaskAsBinary(const std::string &filename)
+void PreprocessWindow::saveMaskAsBinary(const std::string &filename, double top, double left)
 {
     // Get the pixel data from the mask pixbuf
     guchar *pixels = m_maskPixbuf->get_pixels();
-    int width = 512;
-    int height = 512;
     int rowstride = m_maskPixbuf->get_rowstride();
     int n_channels = m_maskPixbuf->get_n_channels();
 
     // Create a new grayscale Cairo surface to store the binary mask
-    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_A8, width, height);
+    auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_A8, m_patchSize, m_patchSize);
     auto cr = Cairo::Context::create(surface);
 
     // Access the surface's pixel data to manipulate the binary mask
     unsigned char *surface_data = surface->get_data();
 
-    for (int y = 0; y < width; ++y)
+    for (int y = 0; y < m_patchSize; ++y)
     {
-        for (int x = 0; x < width; ++x)
+        for (int x = 0; x < m_patchSize; ++x)
         {
-            int y2 = y + m_brushY - 512;
-            int x2 = x + m_brushX - 512;
+            // Transform to drawing area coordinates
+            int y2 = y + top;
+            int x2 = x + left;
 
             // early quite if the selected ROI is out of boundary
             if (x2 < 0 || x2 > m_maskPixbuf->get_width() || y2 < 0 || y2 > m_maskPixbuf->get_height())
@@ -689,7 +784,7 @@ void PreprocessWindow::saveMaskAsBinary(const std::string &filename)
             unsigned char mask_value = (alpha > 0) ? 1 : 0;
 
             // Write the binary mask value to the surface
-            surface_data[y * width + x] = mask_value * 255; // For visualization, multiply by 255
+            surface_data[y * m_patchSize + x] = mask_value * 255; // For visualization, multiply by 255
         }
     }
 
@@ -734,6 +829,16 @@ void PreprocessWindow::addThumbnailsToList(const std::string &image, const std::
                                             { onDeleteRow(row_box, image, mask); });
     row_box->pack_start(*delete_button, Gtk::PACK_SHRINK);
 
+    // Add a show button to the row
+    auto view_button = Gtk::make_managed<Gtk::Button>("view");
+    view_button->set_margin_start(5);
+    view_button->set_margin_end(5);
+    view_button->set_margin_top(5);
+    view_button->set_margin_bottom(5);
+    view_button->signal_clicked().connect([this, row_box, image]()
+                                            { onViewPatch(row_box, image); });
+    row_box->pack_start(*view_button, Gtk::PACK_SHRINK);
+
     // Create a Gtk::ListBoxRow to wrap the box
     auto listbox_row = Gtk::make_managed<Gtk::ListBoxRow>();
     listbox_row->add(*row_box);
@@ -760,5 +865,26 @@ void PreprocessWindow::onDeleteRow(Gtk::Box *row_box, const std::string &image, 
     if (std::remove(mask.c_str()) != 0)
     {
         std::cerr << "Error deleting mask file: " << mask << std::endl;
+    }
+}
+
+void PreprocessWindow::onViewPatch(Gtk::Box *row_box, const std::string &image)
+{
+    int patchSize;
+    double top, left;
+    auto metadata = FileUtils::replaceExtension(image, "txt");
+    if (loadMetadata(metadata, patchSize, top, left)) {
+        m_patchSize = patchSize;
+        m_brushY = top + patchSize;
+        m_brushX = left + patchSize;
+
+        m_patchSizeSb->set_value(patchSize);
+        m_patchWidthSb->set_value(1);
+        m_patchHeightSb->set_value(1);
+        
+        // Trigger a redraw of the drawing area
+        m_drawingArea->queue_draw();
+    } else {
+        std::cerr << "Failed to load metadata." << std::endl;
     }
 }
