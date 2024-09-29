@@ -856,7 +856,7 @@ void PreprocessWindow::onDeleteRow(Gtk::Box *row_box, const std::string &image, 
     auto parent_row = static_cast<Gtk::ListBoxRow *>(row_box->get_parent());
     m_thumbnailsListbox->remove(*parent_row);
 
-    // Delete the corresponding files
+    // Delete the corresponding files    
     if (std::remove(image.c_str()) != 0)
     {
         std::cerr << "Error deleting original image file: " << image << std::endl;
@@ -865,6 +865,12 @@ void PreprocessWindow::onDeleteRow(Gtk::Box *row_box, const std::string &image, 
     if (std::remove(mask.c_str()) != 0)
     {
         std::cerr << "Error deleting mask file: " << mask << std::endl;
+    }
+
+    auto metadata = FileUtils::replaceExtension(image, "txt");
+    if (std::remove(metadata.c_str()) != 0)
+    {
+        std::cerr << "Error deleting original image file: " << image << std::endl;
     }
 }
 
