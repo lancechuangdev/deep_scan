@@ -11,7 +11,7 @@
 class FileUtils
 {
 public:
-    // Static method to get image files from the specified folder
+    static std::string getGladeFilePath();
     static std::vector<std::string> getImageFiles(const std::string &folder_path);
     static std::vector<std::string> findMatchingImages(const std::string& dirPath, const std::string& baseName, const std::regex& pattern);
     static std::string get_extension(const std::string &filename);

@@ -12,23 +12,8 @@ int main(int argc, char **argv)
 
     try
     {
-        // Define the paths for development and installation
-        const std::filesystem::path dev_path = "../ui.glade";
-        const std::filesystem::path install_path = "/usr/local/share/deep-scan/ui.glade";
-
-        // Check if the file exists in the development path first, otherwise use the install path
-        if (std::filesystem::exists(dev_path))
-        {
-            builder->add_from_file(dev_path.string());
-        }
-        else if (std::filesystem::exists(install_path))
-        {
-            builder->add_from_file(install_path.string());
-        }
-        else
-        {
-            std::cerr << "UI file not found!" << std::endl;
-        }
+        auto gladeFile = FileUtils::getGladeFilePath();
+        builder->add_from_file(gladeFile);
     }
     catch (const Glib::FileError &ex)
     {

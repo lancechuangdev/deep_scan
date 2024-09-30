@@ -652,7 +652,8 @@ void MainWindow::onDisconnectClicked()
 void MainWindow::onOpenDrawingClicked()
 {
     // Create the DrawWindow from the Glade file
-    DrawWindow *drawWindow = DrawWindow::create("../ui.glade");
+    auto gladeFile = FileUtils::getGladeFilePath();
+    DrawWindow *drawWindow = DrawWindow::create(gladeFile);
 
     if (drawWindow)
     {
@@ -663,7 +664,8 @@ void MainWindow::onOpenDrawingClicked()
 
 void MainWindow::onOpenPreprocessingClicked()
 {
-    PreprocessWindow *PreprocessWindow = PreprocessWindow::create("../ui.glade");
+    auto gladeFile = FileUtils::getGladeFilePath();
+    PreprocessWindow *PreprocessWindow = PreprocessWindow::create(gladeFile);
 
     if (PreprocessWindow)
     {

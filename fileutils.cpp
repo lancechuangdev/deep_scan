@@ -1,5 +1,25 @@
 #include "fileutils.h"
 
+std::string FileUtils::getGladeFilePath()
+{
+    const std::filesystem::path dev_path = "../ui.glade";
+    const std::filesystem::path install_path = "/usr/local/share/deep-scan/ui.glade";
+
+    if (std::filesystem::exists(dev_path))
+    {
+        return dev_path;
+    }
+    else if (std::filesystem::exists(install_path))
+    {
+        return install_path;
+    }
+    else
+    {
+        std::cerr << "UI file not found!" << std::endl;
+        return "";
+    }
+}
+
 std::vector<std::string> FileUtils::getImageFiles(const std::string &folder_path)
 {
     std::vector<std::string> image_files;
