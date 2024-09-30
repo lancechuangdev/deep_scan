@@ -14,7 +14,7 @@ PreprocessWindow::PreprocessWindow(BaseObjectType *cobject, const Glib::RefPtr<G
     m_refGlade->get_widget("patch_roi_rbtn", m_selectROIRadioBtn);
     if (m_selectROIRadioBtn)
     {
-        m_selectROIRadioBtn->signal_toggled().connect(sigc::mem_fun(*this, &PreprocessWindow::onSelectedAreaToggled));
+        m_selectROIRadioBtn->signal_toggled().connect(sigc::mem_fun(*this, &PreprocessWindow::onPatchToggled));
     }
 
     m_refGlade->get_widget("patch_settings_box", m_patchSettingsBox);
@@ -336,15 +336,10 @@ void PreprocessWindow::onNextImageClicked()
 
 void PreprocessWindow::onSelectToggled()
 {
-    if (m_selectRadioBtn->get_active())
-    {
-    }
-    else
-    {
-    }
+    // Handled in 'onPatchToggled' since they are mutually exclusive
 }
 
-void PreprocessWindow::onSelectedAreaToggled()
+void PreprocessWindow::onPatchToggled()
 {
     if (m_selectROIRadioBtn->get_active())
     {

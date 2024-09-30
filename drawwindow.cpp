@@ -86,16 +86,16 @@ DrawWindow::DrawWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder>
         active_property.signal_changed().connect(sigc::mem_fun(*this, &DrawWindow::onMaskSwitchActiveChanged));
     }
 
-    m_refGlade->get_widget("select_image_btn", m_selectImageBtn);
-    if (m_selectImageBtn)
+    m_refGlade->get_widget("draw_select_rbtn", m_selectRadioBtn);
+    if (m_selectRadioBtn)
     {
-        m_selectImageBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onSelectImageClicked));
+        m_selectRadioBtn->signal_toggled().connect(sigc::mem_fun(*this, &DrawWindow::onSelectToggled));
     }
-
-    m_refGlade->get_widget("round_brush_btn", m_roundBrushBtn);
-    if (m_roundBrushBtn)
+    
+    m_refGlade->get_widget("draw_brush_rbtn", m_brushRadioBtn);
+    if (m_brushRadioBtn)
     {
-        m_roundBrushBtn->signal_clicked().connect(sigc::mem_fun(*this, &DrawWindow::onRoundBrushClicked));
+        m_brushRadioBtn->signal_toggled().connect(sigc::mem_fun(*this, &DrawWindow::onBrushToggled));
     }
 
     m_refGlade->get_widget("reset_mask_btn", m_resetMaskBtn);
@@ -383,16 +383,23 @@ void DrawWindow::onMaskSwitchActiveChanged()
     loadDrawingAreaBuffer(showMask);
 }
 
-void DrawWindow::onSelectImageClicked()
+void DrawWindow::onSelectToggled()
 {
-    m_isDrawingMode = false;
-    m_showBrushCursor = false;
+    // Handled in 'onPatchToggled' since they are mutually exclusive
 }
 
-void DrawWindow::onRoundBrushClicked()
+void DrawWindow::onBrushToggled()
 {
-    m_isDrawingMode = true;
-    m_showBrushCursor = true;
+    if (m_brushRadioBtn->get_active())
+    {
+        m_isDrawingMode = true;
+        m_showBrushCursor = true;
+    }
+    else
+    {
+        m_isDrawingMode = false;
+        m_showBrushCursor = false;
+    }
 }
 
 void DrawWindow::onResetMaskClicked()

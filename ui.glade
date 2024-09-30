@@ -797,11 +797,12 @@
             <property name="orientation">vertical</property>
             <property name="spacing">10</property>
             <child>
-              <object class="GtkButton" id="select_image_btn">
+              <object class="GtkRadioButton" id="draw_select_rbtn">
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-                <property name="always-show-image">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
                 <child>
                   <object class="GtkImage">
                     <property name="visible">True</property>
@@ -817,12 +818,13 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton" id="round_brush_btn">
+              <object class="GtkRadioButton" id="draw_brush_rbtn">
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
-                <property name="receives-default">True</property>
-                <property name="halign">start</property>
-                <property name="always-show-image">True</property>
+                <property name="receives-default">False</property>
+                <property name="active">True</property>
+                <property name="draw-indicator">False</property>
+                <property name="group">draw_select_rbtn</property>
                 <child>
                   <object class="GtkImage">
                     <property name="visible">True</property>

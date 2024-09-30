@@ -31,7 +31,7 @@ protected:
     void onPreviousImageClicked();
     void onNextImageClicked();
     void onSelectToggled();
-    void onSelectedAreaToggled();
+    void onPatchToggled();
     bool onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr);
     void onDeleteRow(Gtk::Box* row_box, const std::string& image, const std::string& mask);
     void onViewPatch(Gtk::Box *row_box, const std::string &image);

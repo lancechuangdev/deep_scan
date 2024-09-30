@@ -24,8 +24,8 @@ protected:
     Gtk::Button *m_saveMaskBtn;
 
     // Drawing toolbar
-    Gtk::Button *m_selectImageBtn;
-    Gtk::Button *m_roundBrushBtn;
+    Gtk::RadioButton *m_selectRadioBtn;
+    Gtk::RadioButton *m_brushRadioBtn;
     Gtk::Button *m_resetMaskBtn;
 
     // Drawing area
@@ -38,8 +38,8 @@ protected:
     // Button events
     void onPreviousImageClicked();
     void onNextImageClicked();
-    void onSelectImageClicked();
-    void onRoundBrushClicked();
+    void onSelectToggled();
+    void onBrushToggled();
     void onResetMaskClicked();
     void onSaveMaskClicked();
 
