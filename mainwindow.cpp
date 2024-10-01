@@ -92,7 +92,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("capture_picker_fcb", m_capturePickerFcb);
     if (m_capturePickerFcb)
     {
-        // Connect to the file-set signal
         m_capturePickerFcb->signal_selection_changed().connect([this]()
                                                                {
             // Get the selected folder path
@@ -109,7 +108,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("labeling_picker_fcb", m_labelingPickerFcb);
     if (m_labelingPickerFcb)
     {
-        // Connect to the file-set signal
         m_labelingPickerFcb->signal_selection_changed().connect([this]()
         {
             // Get the selected folder path
@@ -125,7 +123,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("patch_picker_fcb", m_patchPickerFcb);
     if (m_patchPickerFcb)
     {
-        // Connect to the file-set signal
         m_patchPickerFcb->signal_selection_changed().connect([this]()
         {
             // Get the selected folder path
@@ -135,6 +132,36 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
 
             // Enable the start button if a folder is selected
             m_openPatchDialogBtn->set_sensitive(!folder.empty());
+        });
+    }
+
+    m_builder->get_widget("model_Images_picker_fcb", m_modelImagesPickerFcb);
+    if (m_modelImagesPickerFcb)
+    {
+        m_modelImagesPickerFcb->signal_selection_changed().connect([this]()
+        {
+            m_trainModelImagesPath = m_modelImagesPickerFcb->get_filename();
+            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty() && !m_saveModelPath.empty());
+        });
+    }
+
+    m_builder->get_widget("model_masks_picker_fcb", m_modelMasksPickerFcb);
+    if (m_modelMasksPickerFcb)
+    {
+        m_modelMasksPickerFcb->signal_selection_changed().connect([this]()
+        {
+            m_trainModelMasksPath = m_modelMasksPickerFcb->get_filename();
+            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty() && !m_saveModelPath.empty());
+        });
+    }
+
+    m_builder->get_widget("save_model_picker_fcb", m_saveModelPickerFcb);
+    if (m_saveModelPickerFcb)
+    {
+        m_saveModelPickerFcb->signal_selection_changed().connect([this]()
+        {
+            m_saveModelPath = m_saveModelPickerFcb->get_filename();
+            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty() && !m_saveModelPath.empty());
         });
     }
 }
@@ -676,40 +703,48 @@ void MainWindow::onOpenPreprocessingClicked()
 
 void MainWindow::onOpenTrainingClicked()
 {
-    // Command to execute the Jupyter notebook in the parent directory
-    const char *cmd = "jupyter nbconvert --to notebook --execute ../test_notebook.ipynb --output executed_notebook.ipynb";
+    auto gladeFile = FileUtils::getGladeFilePath();
+    TrainModelWindow *TrainModelWindow = TrainModelWindow::create(gladeFile);
 
-    // Open a pipe to the command
-    FILE *pipe = popen(cmd, "r");
-    if (!pipe)
+    if (TrainModelWindow)
     {
-        std::cerr << "Failed to run command\n";
+        TrainModelWindow->setModelPath(m_trainModelImagesPath, m_trainModelMasksPath, m_saveModelPath);
+        TrainModelWindow->present();
     }
+    // // Command to execute the Jupyter notebook in the parent directory
+    // const char *cmd = "jupyter nbconvert --to notebook --execute ../test_notebook.ipynb --output executed_notebook.ipynb";
 
-    // Buffer to hold each line of output
-    std::array<char, 128> buffer;
-    std::string result;
+    // // Open a pipe to the command
+    // FILE *pipe = popen(cmd, "r");
+    // if (!pipe)
+    // {
+    //     std::cerr << "Failed to run command\n";
+    // }
 
-    // Read the output from the pipe line by line (nbconvert output, not notebook)
-    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
-    {
-        std::cout << buffer.data(); // Print each line to the console
-        result += buffer.data();    // Append to the result string if needed
-    }
+    // // Buffer to hold each line of output
+    // std::array<char, 128> buffer;
+    // std::string result;
 
-    // Close the pipe
-    int returnCode = pclose(pipe);
-    if (returnCode != 0)
-    {
-        std::cerr << "Command failed with return code " << returnCode << std::endl;
-    }
+    // // Read the output from the pipe line by line (nbconvert output, not notebook)
+    // while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
+    // {
+    //     std::cout << buffer.data(); // Print each line to the console
+    //     result += buffer.data();    // Append to the result string if needed
+    // }
 
-    // Now read the executed notebook file (executed_notebook.ipynb)
-    std::ifstream notebookFile("../executed_notebook.ipynb");
-    if (!notebookFile.is_open())
-    {
-        std::cerr << "Failed to open the executed notebook\n";
-    }
+    // // Close the pipe
+    // int returnCode = pclose(pipe);
+    // if (returnCode != 0)
+    // {
+    //     std::cerr << "Command failed with return code " << returnCode << std::endl;
+    // }
+
+    // // Now read the executed notebook file (executed_notebook.ipynb)
+    // std::ifstream notebookFile("../executed_notebook.ipynb");
+    // if (!notebookFile.is_open())
+    // {
+    //     std::cerr << "Failed to open the executed notebook\n";
+    // }
 
     // // Parse the JSON content of the notebook
     // nlohmann::json notebookJson;

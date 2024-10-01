@@ -7,6 +7,7 @@
 #include "framequeue.h"
 #include "drawwindow.h"
 #include "preprocesswindow.h"
+#include "trainmodelwindow.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -40,10 +41,13 @@ protected:
     Gtk::FileChooserButton *m_capturePickerFcb;
     Gtk::FileChooserButton *m_labelingPickerFcb;
     Gtk::FileChooserButton *m_patchPickerFcb;
+    Gtk::FileChooserButton *m_modelImagesPickerFcb;
+    Gtk::FileChooserButton *m_modelMasksPickerFcb;
+    Gtk::FileChooserButton *m_saveModelPickerFcb;
     Gtk::SpinButton *m_captureDurationSb;
     Gtk::SpinButton *m_captureRateSb;
     Gtk::ProgressBar *m_capturePb;
-
+    
     // Signal handlers:
     void onDiscoverClicked();
     void onConnectClicked();
@@ -71,6 +75,9 @@ private:
     std::atomic<bool> m_running;
     std::string m_imageLabelingPath;
     std::string m_preprocessImagePath;
+    std::string m_trainModelImagesPath;
+    std::string m_trainModelMasksPath;
+    std::string m_saveModelPath;
     void populateDeviceSettings();
     void clearDeviceSettings();
 };

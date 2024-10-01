@@ -3,8 +3,8 @@
 
 #include <gtkmm.h>
 #include <iostream>
-#include "fileutils.h"
 #include <fstream>
+#include "fileutils.h"
 
 class PreprocessWindow : public Gtk::Window
 {

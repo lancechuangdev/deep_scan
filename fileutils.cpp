@@ -60,13 +60,17 @@ std::vector<std::string> FileUtils::getImageFiles(const std::string &folder_path
     return image_files;
 }
 
-std::vector<std::string> FileUtils::findMatchingImages(const std::string& dirPath, const std::string& baseName, const std::regex& pattern) {
+std::vector<std::string> FileUtils::findMatchingImages(const std::string &dirPath, const std::string &baseName, const std::regex &pattern)
+{
     std::vector<std::string> matchingFiles;
 
-    for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
-        if (entry.is_regular_file()) {
+    for (const auto &entry : std::filesystem::directory_iterator(dirPath))
+    {
+        if (entry.is_regular_file())
+        {
             std::string fileName = entry.path().filename().string();
-            if (std::regex_match(fileName, pattern)) {
+            if (std::regex_match(fileName, pattern))
+            {
                 matchingFiles.push_back(entry.path().string());
             }
         }
@@ -111,8 +115,16 @@ std::string FileUtils::constructPatchName(const std::string &imagePath, const st
     // Remove the extension from base name
     baseName = baseName.substr(0, baseName.length() - get_extension(baseName).length());
 
+    // Get current time and format it as YYYYMMDD_HHMMSS
+    char timestamp[20];
+    std::time_t now = std::time(nullptr);
+    std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", std::localtime(&now));
+
+    // Append timestamp to the folder path
+    std::string timestampStr(timestamp);
+
     // Construct the new name by appending the random string
-    std::string patchName = baseName + "_" + generateRandomString(8) + extension;
+    std::string patchName = baseName + "_" + timestampStr + "_" + generateRandomString(8) + extension;
 
     return patchName;
 }
@@ -128,11 +140,11 @@ std::string FileUtils::constructMaskName(const std::string &imageName)
 
 std::string FileUtils::generateRandomString(size_t length)
 {
-    const std::string chars = 
+    const std::string chars =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz"
         "0123456789";
-    
+
     std::random_device rd;
     std::mt19937 generator(rd());
     std::uniform_int_distribution<> distribution(0, chars.size() - 1);
@@ -146,7 +158,7 @@ std::string FileUtils::generateRandomString(size_t length)
     return randomStr;
 }
 
-bool FileUtils::directoryExists(const std::string& parent, const std::string& sub)
+bool FileUtils::directoryExists(const std::string &parent, const std::string &sub)
 {
     // Build the full path
     std::string path = Glib::build_filename(parent, sub);
@@ -155,9 +167,8 @@ bool FileUtils::directoryExists(const std::string& parent, const std::string& su
     return Glib::file_test(path, Glib::FILE_TEST_IS_DIR);
 }
 
-bool FileUtils::createSubdirectory(const std::string& parent, const std::string& sub)
+bool FileUtils::createSubdirectory(const std::string &parent, const std::string &sub)
 {
-
     // Check if the directory already exists
     if (directoryExists(parent, sub))
     {
@@ -179,7 +190,7 @@ bool FileUtils::createSubdirectory(const std::string& parent, const std::string&
         // Check if the failure was because the directory already exists
         if (errno == EEXIST)
         {
-            return true;  // Directory exists
+            return true; // Directory exists
         }
         else
         {
@@ -194,12 +205,80 @@ std::string FileUtils::replaceExtension(const std::string &filename, const std::
 {
     // Find the last occurrence of the dot character
     size_t dotPos = filename.find_last_of('.');
-    
+
     // If there is no dot, just return the filename with the new extension
-    if (dotPos == std::string::npos) {
+    if (dotPos == std::string::npos)
+    {
         return filename + "." + newExtension;
     }
 
     // Replace the existing extension with the new one
     return filename.substr(0, dotPos) + "." + newExtension;
+}
+
+bool FileUtils::checkImagesDimensions(std::vector<std::string> images, int width, int height)
+{
+    for (const std::string &imagePath : images)
+    {
+        try
+        {
+            // Load the image into a Gdk::Pixbuf
+            auto pixbuf = Gdk::Pixbuf::create_from_file(imagePath);
+
+            // Get the width and height of the image
+            int actualWidth = pixbuf->get_width();
+            int actualHeight = pixbuf->get_height();
+
+            // Check if the width and height are 512
+            if (actualWidth != width || actualHeight != height)
+            {
+                std::cerr << "Image " << imagePath << " has incorrect dimensions: "
+                          << width << "x" << height << std::endl;
+                return false; // Return false if any image does not match
+            }
+        }
+        catch (const Glib::FileError &e)
+        {
+            std::cerr << "File error: " << e.what() << std::endl;
+            return false;
+        }
+        catch (const Gdk::PixbufError &e)
+        {
+            std::cerr << "Pixbuf error: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool FileUtils::checkImagesHaveMasks(std::vector<std::string> images, std::vector<std::string> masks)
+{
+    for (const std::string &imagePath : images)
+    {
+        // Get the filename without extension
+        std::filesystem::path imageFile(imagePath);
+        std::string imageStem = imageFile.stem();           // Filename without extension
+        std::string imageExtension = imageFile.extension(); // Get the extension (e.g., .png)
+
+        // Generate the corresponding mask filename
+        std::string expectedMask = imageStem + "_mask" + imageExtension;
+
+        // Check if the mask exists in m_selectedMasks
+        auto it = std::find_if(masks.begin(), masks.end(),
+                               [&expectedMask](const std::string &maskPath)
+                               {
+                                   return std::filesystem::path(maskPath).filename() == expectedMask;
+                               });
+
+        if (it == masks.end())
+        {
+            std::cerr << "Mask for image " << imagePath << " not found. Expected: "
+                      << expectedMask << std::endl;
+            return false; // If the mask isn't found, return false
+        }
+    }
+
+    // All images have corresponding masks
+    return true;
 }

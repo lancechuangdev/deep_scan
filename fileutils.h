@@ -22,6 +22,8 @@ public:
     static std::string replaceExtension(const std::string &filename, const std::string &newExtension);
     static bool directoryExists(const std::string& parent, const std::string& sub);
     static bool createSubdirectory(const std::string& parent, const std::string& sub);
+    static bool checkImagesDimensions(std::vector<std::string> images, int width, int height);
+    static bool checkImagesHaveMasks(std::vector<std::string> images, std::vector<std::string> masks);
 };
 
 #endif // FILEUTILS_H
