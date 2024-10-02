@@ -77,7 +77,6 @@ private:
     std::string m_preprocessImagePath;
     std::string m_trainModelImagesPath;
     std::string m_trainModelMasksPath;
-    std::string m_saveModelPath;
     void populateDeviceSettings();
     void clearDeviceSettings();
 };

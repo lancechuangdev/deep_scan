@@ -141,7 +141,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         m_modelImagesPickerFcb->signal_selection_changed().connect([this]()
         {
             m_trainModelImagesPath = m_modelImagesPickerFcb->get_filename();
-            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty() && !m_saveModelPath.empty());
+            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty());
         });
     }
 
@@ -151,17 +151,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         m_modelMasksPickerFcb->signal_selection_changed().connect([this]()
         {
             m_trainModelMasksPath = m_modelMasksPickerFcb->get_filename();
-            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty() && !m_saveModelPath.empty());
-        });
-    }
-
-    m_builder->get_widget("save_model_picker_fcb", m_saveModelPickerFcb);
-    if (m_saveModelPickerFcb)
-    {
-        m_saveModelPickerFcb->signal_selection_changed().connect([this]()
-        {
-            m_saveModelPath = m_saveModelPickerFcb->get_filename();
-            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty() && !m_saveModelPath.empty());
+            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty());
         });
     }
 }
@@ -708,57 +698,7 @@ void MainWindow::onOpenTrainingClicked()
 
     if (TrainModelWindow)
     {
-        TrainModelWindow->setModelPath(m_trainModelImagesPath, m_trainModelMasksPath, m_saveModelPath);
+        TrainModelWindow->setModelPath(m_trainModelImagesPath, m_trainModelMasksPath);
         TrainModelWindow->present();
     }
-    // // Command to execute the Jupyter notebook in the parent directory
-    // const char *cmd = "jupyter nbconvert --to notebook --execute ../test_notebook.ipynb --output executed_notebook.ipynb";
-
-    // // Open a pipe to the command
-    // FILE *pipe = popen(cmd, "r");
-    // if (!pipe)
-    // {
-    //     std::cerr << "Failed to run command\n";
-    // }
-
-    // // Buffer to hold each line of output
-    // std::array<char, 128> buffer;
-    // std::string result;
-
-    // // Read the output from the pipe line by line (nbconvert output, not notebook)
-    // while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
-    // {
-    //     std::cout << buffer.data(); // Print each line to the console
-    //     result += buffer.data();    // Append to the result string if needed
-    // }
-
-    // // Close the pipe
-    // int returnCode = pclose(pipe);
-    // if (returnCode != 0)
-    // {
-    //     std::cerr << "Command failed with return code " << returnCode << std::endl;
-    // }
-
-    // // Now read the executed notebook file (executed_notebook.ipynb)
-    // std::ifstream notebookFile("../executed_notebook.ipynb");
-    // if (!notebookFile.is_open())
-    // {
-    //     std::cerr << "Failed to open the executed notebook\n";
-    // }
-
-    // // Parse the JSON content of the notebook
-    // nlohmann::json notebookJson;
-    // notebookFile >> notebookJson;
-
-    // // Traverse the notebook to find the cell outputs
-    // for (const auto& cell : notebookJson["cells"]) {
-    //     if (cell.contains("outputs")) {
-    //         for (const auto& output : cell["outputs"]) {
-    //             if (output.contains("text")) {
-    //                 // Print the output text from each cell
-    //                 std::cout << output["text"] << std::endl;
-    //             }
-    //         }
-    //     }
-    // }
 }
