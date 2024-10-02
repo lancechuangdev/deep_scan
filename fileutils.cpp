@@ -282,3 +282,117 @@ bool FileUtils::checkImagesHaveMasks(std::vector<std::string> images, std::vecto
     // All images have corresponding masks
     return true;
 }
+
+bool FileUtils::createTrainingDatasetDirs(const std::string &destination,
+                                          std::filesystem::path &trainImagesPath,
+                                          std::filesystem::path &trainMasksPath,
+                                          std::filesystem::path &valImagesPath,
+                                          std::filesystem::path &valMasksPath,
+                                          std::filesystem::path &testImagesPath,
+                                          std::filesystem::path &testMasksPath)
+{
+    // Create directories for train, val, and test if they don't exist
+    trainImagesPath = std::filesystem::path(destination) / "train" / "images";
+    trainMasksPath = std::filesystem::path(destination) / "train" / "masks";
+    valImagesPath = std::filesystem::path(destination) / "val" / "images";
+    valMasksPath = std::filesystem::path(destination) / "val" / "masks";
+    testImagesPath = std::filesystem::path(destination) / "test" / "images";
+    testMasksPath = std::filesystem::path(destination) / "test" / "masks";
+
+    if (!std::filesystem::exists(trainImagesPath) && !std::filesystem::create_directories(trainImagesPath))
+    {
+        return false;
+    }
+
+    if (!std::filesystem::exists(trainMasksPath) && !std::filesystem::create_directories(trainMasksPath))
+    {
+        return false;
+    }
+
+    if (!std::filesystem::exists(valImagesPath) && !std::filesystem::create_directories(valImagesPath))
+    {
+        return false;
+    }
+
+    if (!std::filesystem::exists(valMasksPath) && !std::filesystem::create_directories(valMasksPath))
+    {
+        return false;
+    }
+
+    if (!std::filesystem::exists(testImagesPath) && !std::filesystem::create_directories(testImagesPath))
+    {
+        return false;
+    }
+
+    if (!std::filesystem::exists(testMasksPath) && !std::filesystem::create_directories(testMasksPath))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool FileUtils::splitAndCopyImagesAndMasks(std::vector<std::string> images, std::vector<std::string> masks, const std::string &destination, double trainRatio, double valRatio, double testRatio)
+{
+    // Create directories for train, val, and test if they don't exist
+    std::filesystem::path trainImagesPath, trainMasksPath;
+    std::filesystem::path valImagesPath, valMasksPath;
+    std::filesystem::path testImagesPath, testMasksPath;
+
+    if (!createTrainingDatasetDirs(destination, trainImagesPath, trainMasksPath, valImagesPath, valMasksPath, testImagesPath, testMasksPath))
+    {
+        return false;
+    }
+
+    // Combine images and masks into pairs for easier shuffling
+    std::vector<std::pair<std::string, std::string>> imageMaskPairs;
+    for (size_t i = 0; i < images.size(); ++i)
+    {
+        imageMaskPairs.emplace_back(images[i], masks[i]);
+    }
+
+    // Shuffle the pairs
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(imageMaskPairs.begin(), imageMaskPairs.end(), g);
+
+    // Calculate the indices for splitting
+    size_t totalCount = imageMaskPairs.size();
+    size_t trainCount = static_cast<size_t>(trainRatio * totalCount);
+    size_t valCount = static_cast<size_t>(valRatio * totalCount);
+
+    // Copy to train, val, and test directories
+    for (size_t i = 0; i < totalCount; ++i)
+    {
+        const auto &pair = imageMaskPairs[i];
+        const std::string &imagePath = pair.first;
+        const std::string &maskPath = pair.second;
+
+        if (i < trainCount)
+        {
+            if (!std::filesystem::copy_file(imagePath, (trainImagesPath / std::filesystem::path(imagePath).filename()), std::filesystem::copy_options::overwrite_existing) ||
+                !std::filesystem::copy_file(maskPath, (trainMasksPath / std::filesystem::path(maskPath).filename()), std::filesystem::copy_options::overwrite_existing))
+            {
+                return false;
+            }
+        }
+        else if (i < trainCount + valCount)
+        {
+            if (!std::filesystem::copy_file(imagePath, (valImagesPath / std::filesystem::path(imagePath).filename()), std::filesystem::copy_options::overwrite_existing) ||
+                !std::filesystem::copy_file(maskPath, (valMasksPath / std::filesystem::path(maskPath).filename()), std::filesystem::copy_options::overwrite_existing))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if (!std::filesystem::copy_file(imagePath, (testImagesPath / std::filesystem::path(imagePath).filename()), std::filesystem::copy_options::overwrite_existing) ||
+                !std::filesystem::copy_file(maskPath, (testMasksPath / std::filesystem::path(maskPath).filename()), std::filesystem::copy_options::overwrite_existing))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
