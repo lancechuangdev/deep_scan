@@ -3,8 +3,10 @@
 
 #include <gtkmm.h>
 #include <thread>
-#include <cstdlib> // for std::system()
+#include <fstream> // for std::ofstream
+#include <cstdio> // for std::remove
 #include "fileutils.h"
+#include "pyscript.h"
 
 class TrainModelWindow : public Gtk::Window
 {

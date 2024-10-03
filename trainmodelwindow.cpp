@@ -92,11 +92,11 @@ void TrainModelWindow::on_window_shown()
 
     if (m_imagesCountLbl)
     {
-        m_imagesCountLbl->set_text(Glib::ustring::compose("Load %1 Images in:", m_selectedImages.size()));
+        m_imagesCountLbl->set_text(Glib::ustring::compose("Loaded %1 Images in:", m_selectedImages.size()));
     }
     if (m_masksCountLbl)
     {
-        m_masksCountLbl->set_text(Glib::ustring::compose("Load %1 Masks in:", m_selectedMasks.size()));
+        m_masksCountLbl->set_text(Glib::ustring::compose("Loaded %1 Masks in:", m_selectedMasks.size()));
     }
     if (m_imagesPathLbl)
     {
@@ -122,6 +122,14 @@ void TrainModelWindow::on_window_shown()
     {
         m_pyEnv = m_pyEnvEntry->get_text();
     }
+    if (m_viewModelBtn)
+    {
+        m_viewModelBtn->set_sensitive(false);
+    }
+    if (m_viewTestResultBtn)
+    {
+        m_viewTestResultBtn->set_sensitive(false);
+    }
 }
 
 bool TrainModelWindow::validateInputDataset()
@@ -140,6 +148,11 @@ void TrainModelWindow::onStartTrainingClicked()
     {
         m_startTrainingBtn->set_sensitive(false); // Disable the button
         m_startTrainingBtn->set_label("Training..."); // Change the button text
+    }
+
+    if (m_viewModelBtn)
+    {
+        m_viewModelBtn->set_sensitive(false);
     }
 
     m_modelPath = "";
@@ -231,8 +244,44 @@ void TrainModelWindow::onStartTrainingClicked()
             m_testImagesPath = testImagesPath;
             m_testMasksPath = testMasksPath;
 
+            // Write the Python script to the temp file
+            std::string tempPyPath = "/tmp/deep_scan/temp_unet.py";
+            if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
+            {
+                std::cerr << "Failed to create tmp directory.";
+
+                if (m_startTrainingBtn)
+                {
+                    m_startTrainingBtn->set_sensitive(true);
+                    m_startTrainingBtn->set_label("Start");
+                }
+
+                return;
+            }
+            else
+            {
+                std::ofstream tempUnetPyFile(tempPyPath);
+                if (tempUnetPyFile.is_open())
+                {
+                    tempUnetPyFile << unet_py;
+                    tempUnetPyFile.close();
+                }
+                else
+                {
+                    std::cerr << "Failed to open temp_unet.py for writing" << std::endl;
+
+                    if (m_startTrainingBtn)
+                    {
+                        m_startTrainingBtn->set_sensitive(true);
+                        m_startTrainingBtn->set_label("Start");
+                    }
+
+                    return;
+                }
+            }
+
             // Command to execute the python script
-            std::string cmd = m_pyEnv + std::string(" ../unet.py") +
+            std::string cmd = m_pyEnv + " " + tempPyPath +
                               std::string(" --model_path ") + Glib::build_filename(m_modelPath, "ds.keras") +
                               std::string(" --train_images_path ") + trainImagesPath.string() +
                               std::string(" --train_masks_path ") + trainMasksPath.string() +
@@ -243,7 +292,7 @@ void TrainModelWindow::onStartTrainingClicked()
                               std::string(" --epochs ") + std::to_string(m_epochs);
 
             // Run the command in a separate thread
-            std::thread([this, cmd]() {
+            std::thread([this, cmd, tempPyPath]() {
                 // Open a pipe to the command
                 FILE *pipe = popen(cmd.c_str(), "r");
                 if (!pipe)
@@ -252,13 +301,34 @@ void TrainModelWindow::onStartTrainingClicked()
                     return;
                 }
 
+                // Open log file for writing
+                std::string logFilePath = Glib::build_filename(m_modelPath, "ds.log");
+                std::ofstream logFile(logFilePath, std::ios::out | std::ios::app); // Append mode
+                if (logFile.is_open()) {
+                    std::string cmdForLogging = cmd;
+                    // Find and replace tempPyPath with "ds.py"
+                    size_t pos = cmdForLogging.find(tempPyPath);
+                    if (pos != std::string::npos) {
+                        cmdForLogging.replace(pos, tempPyPath.length(), "ds.py");
+                    }
+                    logFile << cmdForLogging << std::endl;
+                }
+
                 // Buffer to hold each line of output
-                std::array<char, 128> buffer;
+                std::array<char, 256> buffer;
 
                 // Read the output from the pipe line by line
                 while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
                 {
                     std::cout << buffer.data(); // Print each line to the console
+                    if (logFile.is_open()) {
+                        logFile << buffer.data(); // Write each line to the log file
+                    }
+                }
+
+                // Close the log file
+                if (logFile.is_open()) {
+                    logFile.close();
                 }
 
                 // Close the pipe
@@ -271,12 +341,19 @@ void TrainModelWindow::onStartTrainingClicked()
                 // Optionally handle the result here or update the UI (make sure UI updates happen on the main thread)
                 std::cout << "Python script finished execution." << std::endl;
 
+                // Delete the tmp script after execution
+                std::remove(tempPyPath.c_str());
+
                 // Re-enable the button and reset the text back to "Start" on the main thread
                 Glib::signal_idle().connect_once([this]() {
                     if (m_startTrainingBtn)
                     {
                         m_startTrainingBtn->set_sensitive(true);
                         m_startTrainingBtn->set_label("Start");
+                    }
+                    if (m_viewModelBtn)
+                    {
+                        m_viewModelBtn->set_sensitive(true);
                     }
                 });
             }).detach(); // Detach the thread so it runs independently
@@ -305,6 +382,11 @@ void TrainModelWindow::onTestModelClicked()
         m_testModelBtn->set_label("Testing...");
     }
 
+    if (m_viewTestResultBtn)
+    {
+        m_viewTestResultBtn->set_sensitive(false);
+    }
+
     if (m_predFidelity <= 0)
     {
         if (m_testModelBtn)
@@ -315,8 +397,44 @@ void TrainModelWindow::onTestModelClicked()
         return;
     }
     
+    // Write the Python script to the temp file
+    std::string tempPyPath = "/tmp/deep_scan/temp_unet_test.py";
+    if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
+    {
+        std::cerr << "Failed to create tmp directory.";
+
+        if (m_testModelBtn)
+        {
+            m_testModelBtn->set_sensitive(true);
+            m_testModelBtn->set_label("Start");
+        }
+
+        return;
+    }
+    else
+    {
+        std::ofstream tempUnetTestPyFile(tempPyPath);
+        if (tempUnetTestPyFile.is_open())
+        {
+            tempUnetTestPyFile << unet_test_py;
+            tempUnetTestPyFile.close();
+        }
+        else
+        {
+            std::cerr << "Failed to open temp_unet.py for writing" << std::endl;
+
+            if (m_testModelBtn)
+            {
+                m_testModelBtn->set_sensitive(true);
+                m_testModelBtn->set_label("Start");
+            }
+
+            return;
+        }
+    }
+
     // Command to execute the python script
-    std::string cmd = m_pyEnv + std::string(" ../unet_test.py") +
+    std::string cmd = m_pyEnv + " " + tempPyPath +
                         std::string(" --model_path ") + Glib::build_filename(m_modelPath, "ds.keras") +
                         std::string(" --test_images_path ") + m_testImagesPath +
                         std::string(" --test_masks_path ") + m_testMasksPath +
@@ -325,12 +443,25 @@ void TrainModelWindow::onTestModelClicked()
                         std::string(" --threshold ") + std::to_string(m_predFidelity);
 
     // Run the command in a separate thread
-    std::thread([this, cmd]() {
+    std::thread([this, cmd, tempPyPath]() {
         // Open a pipe to the command
         FILE *pipe = popen(cmd.c_str(), "r");
         if (!pipe)
         {
             std::cerr << "Failed to run command\n";
+        }
+
+        // Open log file for writing
+        std::string logFilePath = Glib::build_filename(m_modelPath, "ds.log");
+        std::ofstream logFile(logFilePath, std::ios::out | std::ios::app); // Append mode
+        if (logFile.is_open()) {
+            std::string cmdForLogging = cmd;
+            // Find and replace tempPyPath with "ds_test.py"
+            size_t pos = cmdForLogging.find(tempPyPath);
+            if (pos != std::string::npos) {
+                cmdForLogging.replace(pos, tempPyPath.length(), "ds_test.py");
+            }
+            logFile << cmdForLogging << std::endl;
         }
 
         // Buffer to hold each line of output
@@ -340,6 +471,14 @@ void TrainModelWindow::onTestModelClicked()
         while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
         {
             std::cout << buffer.data(); // Print each line to the console
+            if (logFile.is_open()) {
+                logFile << buffer.data(); // Write each line to the log file
+            }
+        }
+
+        // Close the log file
+        if (logFile.is_open()) {
+            logFile.close();
         }
 
         // Close the pipe
@@ -349,12 +488,20 @@ void TrainModelWindow::onTestModelClicked()
             std::cerr << "Command failed with return code " << returnCode << std::endl;
         }
 
+        // Delete the tmp script after execution
+        std::remove(tempPyPath.c_str());
+
         // Re-enable the button and reset the text back to "Start" on the main thread
         Glib::signal_idle().connect_once([this]() {
             if (m_testModelBtn)
             {
                 m_testModelBtn->set_sensitive(true);
                 m_testModelBtn->set_label("Test");
+            }
+
+            if (m_viewTestResultBtn)
+            {
+                m_viewTestResultBtn->set_sensitive(true);
             }
         });
     }).detach(); // Detach the thread so it runs independently
