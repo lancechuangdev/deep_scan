@@ -96,6 +96,11 @@ void PreprocessWindow::on_window_shown()
 {
     this->set_title(Glib::ustring::compose("Preprocess Images in %1", m_preprocessImagePath));
 
+    if (m_preprocessImageQueue.empty())
+    {
+        return;
+    }
+
     // Set image name label
     if (m_imageNameLbl)
     {
@@ -185,7 +190,7 @@ void PreprocessWindow::loadDrawingAreaBuffer()
         return;
 
     // Clear the drawing area before loading
-    m_ImagePixbuf.reset();
+    m_imagePixbuf.reset();
     m_maskPixbuf.reset();
 
     // Reset zoom and pan when a new image is loaded
@@ -198,11 +203,11 @@ void PreprocessWindow::loadDrawingAreaBuffer()
     int width, height;
     m_drawingArea->get_size_request(width, height);
 
-    if (m_ImagePixbuf)
+    if (m_imagePixbuf)
     {
         // Get the dimensions of the pixbuf
-        width = m_ImagePixbuf->get_width();
-        height = m_ImagePixbuf->get_height();
+        width = m_imagePixbuf->get_width();
+        height = m_imagePixbuf->get_height();
         // Set the size of the drawing area if needed
         m_drawingArea->set_size_request(width, height);
     }
@@ -223,7 +228,7 @@ void PreprocessWindow::loadImageBufferFromFile(const std::string &filename)
     try
     {
         // Load image
-        m_ImagePixbuf = Gdk::Pixbuf::create_from_file(filename);
+        m_imagePixbuf = Gdk::Pixbuf::create_from_file(filename);
     }
     catch (const Glib::FileError &ex)
     {
@@ -360,9 +365,9 @@ bool PreprocessWindow::onDrawingAreaDraw(const Cairo::RefPtr<Cairo::Context> &cr
     cr->scale(m_zoomFactor, m_zoomFactor); // Apply zoom
 
     // Draw the image
-    if (m_ImagePixbuf)
+    if (m_imagePixbuf)
     {
-        Gdk::Cairo::set_source_pixbuf(cr, m_ImagePixbuf, 0, 0);
+        Gdk::Cairo::set_source_pixbuf(cr, m_imagePixbuf, 0, 0);
         cr->paint();
     }
 
@@ -534,7 +539,7 @@ bool PreprocessWindow::onButtonReleaseEvent(GdkEventButton *button_event)
 {
     if (button_event->button == 1)
     {
-        if (m_isPatchingMode)
+        if (m_isPatchingMode && m_imagePixbuf && m_maskPixbuf)
         {
             m_showPatchCursor = true;
 
@@ -697,9 +702,9 @@ bool PreprocessWindow::saveMetadata(const std::string &metadataFilename, int pat
 bool PreprocessWindow::saveImagePatch(const std::string &filename, double top, double left)
 {
     // Get the pixel data from the mask pixbuf
-    guchar *pixels = m_ImagePixbuf->get_pixels();
-    int rowstride = m_ImagePixbuf->get_rowstride();
-    int n_channels = m_ImagePixbuf->get_n_channels();
+    guchar *pixels = m_imagePixbuf->get_pixels();
+    int rowstride = m_imagePixbuf->get_rowstride();
+    int n_channels = m_imagePixbuf->get_n_channels();
 
     // Create a new grayscale Cairo surface to store the binary mask
     auto surface = Cairo::ImageSurface::create(Cairo::FORMAT_A8, m_patchSize, m_patchSize);
@@ -717,7 +722,7 @@ bool PreprocessWindow::saveImagePatch(const std::string &filename, double top, d
             int x2 = x + left;
 
             // early quite if the selected ROI is out of boundary
-            if (x2 < 0 || x2 > m_maskPixbuf->get_width() || y2 < 0 || y2 > m_maskPixbuf->get_height())
+            if (x2 < 0 || x2 > m_imagePixbuf->get_width() || y2 < 0 || y2 > m_imagePixbuf->get_height())
             {
                 return false;
             }
@@ -745,6 +750,11 @@ bool PreprocessWindow::saveImagePatch(const std::string &filename, double top, d
 
 void PreprocessWindow::saveMaskAsBinary(const std::string &filename, double top, double left)
 {
+    if (!m_maskPixbuf)
+    {
+        return;
+    }
+
     // Get the pixel data from the mask pixbuf
     guchar *pixels = m_maskPixbuf->get_pixels();
     int rowstride = m_maskPixbuf->get_rowstride();

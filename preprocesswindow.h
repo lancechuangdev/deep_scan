@@ -64,7 +64,7 @@ private:
     std::string m_preprocessImagePath;
     std::vector<std::string> m_preprocessImageQueue;
     size_t m_preprocessImageIndex = 0;
-    Glib::RefPtr<Gdk::Pixbuf> m_ImagePixbuf; // Store the currently loaded image pixbuf
+    Glib::RefPtr<Gdk::Pixbuf> m_imagePixbuf; // Store the currently loaded image pixbuf
     Glib::RefPtr<Gdk::Pixbuf> m_maskPixbuf;    // Mask layer (transparent surface)
     Glib::RefPtr<Gdk::Pixbuf> m_patchPixbuf;    // Patch layer
 
