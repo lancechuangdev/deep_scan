@@ -80,13 +80,29 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_camTreeView->append_column("Model", m_camcols.col_model);
     m_camTreeView->append_column("Friendly Name", m_camcols.col_friendly_name);
     m_camTreeView->append_column("IP Address", m_camcols.col_ip);
+    m_camTreeView->append_column("Serial Number", m_camcols.col_sn);
 
-    // Device settings
-    m_builder->get_widget("exposure_lbl", m_exposureTimeLbl);
+    // Device settings    
+    m_builder->get_widget("sn_lbl", m_snLbl);
+    m_builder->get_widget("exposure_entry", m_exposureTimeEntry);
     m_builder->get_widget("frame_rate_lbl", m_frameRateLbl);
-    m_builder->get_widget("width_lbl", m_widthLbl);
-    m_builder->get_widget("height_lbl", m_heightLbl);
-    m_builder->get_widget("gain_lbl", m_gainLbl);
+    m_builder->get_widget("width_entry", m_widthEntry);
+    m_builder->get_widget("height_entry", m_heightEntry);
+    m_builder->get_widget("offset_x_entry", m_offsetXEntry);
+    m_builder->get_widget("offset_y_entry", m_offsetYEntry);
+    m_builder->get_widget("gain_entry", m_gainEntry);
+
+    m_builder->get_widget("save_preset_btn", m_savePresetBtn);
+    if (m_savePresetBtn)
+    {
+        m_savePresetBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onSavePresetClicked));
+    }
+    m_builder->get_widget("recall_preset_btn", m_recallPresetBtn);
+    if (m_recallPresetBtn)
+    {
+        m_recallPresetBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onRecallPresetClicked));
+    }
+
 
     // Image Acquiring
     m_builder->get_widget("capture_picker_fcb", m_capturePickerFcb);
@@ -254,8 +270,15 @@ void MainWindow::onDiscoverClicked()
                     row[m_camcols.col_model] = Glib::ustring(reinterpret_cast<const char *>(pDeviceInfo->SpecialInfo.stGigEInfo.chModelName));
                     row[m_camcols.col_friendly_name] = Glib::ustring(reinterpret_cast<const char *>(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName));
                     row[m_camcols.col_ip] = getIpV4AddressString(pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp);
+                    row[m_camcols.col_sn] = Glib::ustring(reinterpret_cast<const char *>(pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber));
                 }
             }
+            // // for testing
+            // Gtk::TreeModel::Row row = *(m_camListStore->append());
+            // row[m_camcols.col_model] = Glib::ustring("model name");
+            // row[m_camcols.col_friendly_name] = Glib::ustring("friendly name");
+            // row[m_camcols.col_ip] = Glib::ustring("1.0.0.0");
+            // row[m_camcols.col_sn] = Glib::ustring("ABC123456");
         }
         else
         {
@@ -268,24 +291,21 @@ void MainWindow::onDiscoverClicked()
 void MainWindow::onConnectClicked()
 {
     int nIndex = getSelectedCamIndex(m_camTreeView, m_camListStore);
+    if (nIndex < 0)
+    {
+        std::cout << "No camera was selected." << std::endl;
+        return;
+    }
 
     // Create device handler if needed
     if (!m_selectedCam)
     {
-        if (nIndex < 0)
+        MV_CC_DEVICE_INFO *pSelectedCam = m_camList.pDeviceInfo[nIndex];
+        int nRet = MV_CC_CreateHandle(&m_selectedCam, pSelectedCam);
+        if (nRet != MV_OK)
         {
-            std::cout << "No camera was selected." << std::endl;
+            std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
             return;
-        }
-        else
-        {
-            MV_CC_DEVICE_INFO *pSelectedCam = m_camList.pDeviceInfo[nIndex];
-            int nRet = MV_CC_CreateHandle(&m_selectedCam, pSelectedCam);
-            if (nRet != MV_OK)
-            {
-                std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
-                return;
-            }
         }
     }
 
@@ -358,17 +378,25 @@ void MainWindow::onConnectClicked()
 
 void MainWindow::populateDeviceSettings()
 {
+    // Serial number
+    MVCC_STRINGVALUE sn = {0};
+    int nRet = MV_CC_GetStringValue(m_selectedCam, "DeviceSerialNumber", &sn);
+    if (MV_OK == nRet && m_snLbl)
+    {
+        m_snLbl->set_text(Glib::ustring(sn.chCurValue));
+    }
+
     // Exposure time
     MVCC_FLOATVALUE exposureTime = {0};
-    int nRet = MV_CC_GetFloatValue(m_selectedCam, "ExposureTime", &exposureTime);
-    if (MV_OK == nRet && m_exposureTimeLbl)
+    nRet = MV_CC_GetFloatValue(m_selectedCam, "ExposureTime", &exposureTime);
+    if (MV_OK == nRet && m_exposureTimeEntry)
     {
         // Convert float to string
         std::ostringstream oss;
         oss << exposureTime.fCurValue;
 
         // Set the label text
-        m_exposureTimeLbl->set_text(Glib::ustring(oss.str()));
+        m_exposureTimeEntry->set_text(Glib::ustring(oss.str()));
     }
     else
     {
@@ -395,9 +423,9 @@ void MainWindow::populateDeviceSettings()
     // Width
     MVCC_INTVALUE width = {0};
     nRet = MV_CC_GetIntValue(m_selectedCam, "Width", &width);
-    if (MV_OK == nRet && m_widthLbl)
+    if (MV_OK == nRet && m_widthEntry)
     {
-        m_widthLbl->set_text(std::to_string(width.nCurValue));
+        m_widthEntry->set_text(std::to_string(width.nCurValue));
     }
     else
     {
@@ -407,26 +435,50 @@ void MainWindow::populateDeviceSettings()
     // Height
     MVCC_INTVALUE height = {0};
     nRet = MV_CC_GetIntValue(m_selectedCam, "Height", &height);
-    if (MV_OK == nRet && m_heightLbl)
+    if (MV_OK == nRet && m_heightEntry)
     {
-        m_heightLbl->set_text(std::to_string(height.nCurValue));
+        m_heightEntry->set_text(std::to_string(height.nCurValue));
     }
     else
     {
         std::cout << "Failed to get height. Error code: " << nRet << std::endl;
     }
 
+    // Offset X
+    MVCC_INTVALUE offsetX = {0};
+    nRet = MV_CC_GetIntValue(m_selectedCam, "OffsetX", &offsetX);
+    if (MV_OK == nRet && m_offsetXEntry)
+    {
+        m_offsetXEntry->set_text(std::to_string(offsetX.nCurValue));
+    }
+    else
+    {
+        std::cout << "Failed to get offsetX. Error code: " << nRet << std::endl;
+    }
+
+    // Offset Y
+    MVCC_INTVALUE offsetY = {0};
+    nRet = MV_CC_GetIntValue(m_selectedCam, "OffsetY", &offsetY);
+    if (MV_OK == nRet && m_offsetYEntry)
+    {
+        m_offsetYEntry->set_text(std::to_string(offsetY.nCurValue));
+    }
+    else
+    {
+        std::cout << "Failed to get offsetY. Error code: " << nRet << std::endl;
+    }
+
     // Gain
     MVCC_FLOATVALUE gain = {0};
     nRet = MV_CC_GetFloatValue(m_selectedCam, "Gain", &gain);
-    if (MV_OK == nRet && m_gainLbl)
+    if (MV_OK == nRet && m_gainEntry)
     {
         // Convert float to string
         std::ostringstream oss;
         oss << gain.fCurValue;
 
         // Set the label text
-        m_gainLbl->set_text(oss.str());
+        m_gainEntry->set_text(oss.str());
     }
     else
     {
@@ -436,25 +488,236 @@ void MainWindow::populateDeviceSettings()
 
 void MainWindow::clearDeviceSettings()
 {
-    if (m_exposureTimeLbl)
+    if (m_snLbl)
     {
-        m_exposureTimeLbl->set_text(std::string());
+        m_snLbl->set_text(std::string());
+    }
+    if (m_exposureTimeEntry)
+    {
+        m_exposureTimeEntry->set_text(std::string());
     }
     if (m_frameRateLbl)
     {
         m_frameRateLbl->set_text(std::string());
     }
-    if (m_widthLbl)
+    if (m_widthEntry)
     {
-        m_widthLbl->set_text(std::string());
+        m_widthEntry->set_text(std::string());
     }
-    if (m_heightLbl)
+    if (m_heightEntry)
     {
-        m_heightLbl->set_text(std::string());
+        m_heightEntry->set_text(std::string());
     }
-    if (m_gainLbl)
+    if (m_offsetXEntry)
     {
-        m_gainLbl->set_text(std::string());
+        m_offsetXEntry->set_text(std::string());
+    }
+    if (m_offsetYEntry)
+    {
+        m_offsetYEntry->set_text(std::string());
+    }
+    if (m_gainEntry)
+    {
+        m_gainEntry->set_text(std::string());
+    }
+}
+
+void MainWindow::onSavePresetClicked()
+{
+    // Step 1: Read the existing content of the file
+    std::ifstream settingsFile("settings.ini");
+    std::stringstream buffer;
+    if (settingsFile.is_open())
+    {
+        buffer << settingsFile.rdbuf();
+        settingsFile.close();
+    }
+    std::string content = buffer.str();
+    std::string serialNumber = m_snLbl->get_text();
+    std::string sectionHeader = "[" + serialNumber + "]";
+    std::stringstream sectionContent;
+    sectionContent << sectionHeader << std::endl;
+    if (m_exposureTimeEntry)
+    {
+        sectionContent << "exposureTime=" << m_exposureTimeEntry->get_text() << std::endl;
+    }
+    if (m_widthEntry)
+    {
+        sectionContent << "width=" << m_widthEntry->get_text() << std::endl;
+    }
+    if (m_heightEntry)
+    {
+        sectionContent << "height=" << m_heightEntry->get_text() << std::endl;
+    }
+    if (m_offsetXEntry)
+    {
+        sectionContent << "offsetX=" << m_offsetXEntry->get_text() << std::endl;
+    }
+    if (m_offsetYEntry)
+    {
+        sectionContent << "offsetY=" << m_offsetYEntry->get_text() << std::endl;
+    }
+    if (m_gainEntry)
+    {
+        sectionContent << "gain=" << m_gainEntry->get_text() << std::endl;
+    }
+    sectionContent << std::endl; // Add a blank line after the new section
+
+    // Step 2: Find if the section for the device already exists
+    size_t sectionPos = content.find(sectionHeader);
+    bool sectionExists = (sectionPos != std::string::npos);
+
+    if (sectionExists)
+    {
+        // Step 3: If the section exists, replace its contents
+        size_t nextSectionPos = content.find('[', sectionPos + 1); // Find the next section's starting position
+
+        // Replace the old section with the new one
+        if (nextSectionPos == std::string::npos)
+        {
+            // The section is the last one, so replace to the end of the file
+            content.replace(sectionPos, std::string::npos, sectionContent.str());
+        }
+        else
+        {
+            // Replace up to the next section
+            content.replace(sectionPos, nextSectionPos - sectionPos, sectionContent.str());
+        }
+    }
+    else
+    {
+        // Step 4: If the section doesn't exist, append the new section at the end
+        content += sectionContent.str();
+    }
+
+    // Step 5: Write the updated content back to the file (overwrite)
+    std::ofstream outFile("settings.ini");
+    if (outFile.is_open())
+    {
+        outFile << content;
+        outFile.close();
+    }
+    else
+    {
+        std::cerr << "Unable to open settings file for writing." << std::endl;
+    }
+}
+
+void MainWindow::onRecallPresetClicked()
+{
+    std::ifstream settingsFile("settings.ini");
+    std::string line;
+    bool isCurrentDevice = false;
+    std::string sn;
+
+    if (m_snLbl)
+    {
+        sn = m_snLbl->get_text();
+    }
+
+    if (settingsFile.is_open())
+    {
+        while (std::getline(settingsFile, line))
+        {
+            if (line == "[" + sn + "]")
+            {
+                isCurrentDevice = true;
+            }
+            else if (line.find('[') != std::string::npos)
+            {
+                break; // New section means we passed the current device's settings
+            }
+
+            if (isCurrentDevice)
+            {
+                std::istringstream lineStream(line);
+                std::string key;
+
+                if (std::getline(lineStream, key, '='))
+                {
+                    std::string value;
+                    if (key == "exposureTime" && std::getline(lineStream, value))
+                    {
+                        if (m_exposureTimeEntry)
+                        {
+                            m_exposureTimeEntry->set_text(Glib::ustring(value));
+                        }
+
+                        int nRet = MV_CC_SetFloatValue(m_selectedCam, "ExposureTime", std::stof(value));
+                        if (MV_OK != nRet)
+                        {
+                            std::cerr << "Error to set exposure time. Error code: " << nRet << std::endl;
+                        }
+                    }
+                    else if (key == "width" && std::getline(lineStream, value))
+                    {
+                        if (m_widthEntry)
+                        {
+                            m_widthEntry->set_text(Glib::ustring(value));
+                        }
+
+                        int nRet = MV_CC_SetIntValue(m_selectedCam, "Width", std::stoi(value));
+                        if (MV_OK != nRet)
+                        {
+                            std::cerr << "Error to set width. Error code: " << nRet << std::endl;
+                        }
+                    }
+                    else if (key == "height" && std::getline(lineStream, value))
+                    {
+                        if (m_heightEntry)
+                        {
+                            m_heightEntry->set_text(Glib::ustring(value));
+                        }
+
+                        int nRet = MV_CC_SetIntValue(m_selectedCam, "Height", std::stoi(value));
+                        if (MV_OK != nRet)
+                        {
+                            std::cerr << "Error to set height. Error code: " << nRet << std::endl;
+                        }
+                    }
+                    else if (key == "offsetX" && std::getline(lineStream, value))
+                    {
+                        if (m_offsetXEntry)
+                        {
+                            m_offsetXEntry->set_text(Glib::ustring(value));
+                        }
+
+                        int nRet = MV_CC_SetIntValue(m_selectedCam, "OffsetX", std::stoi(value));
+                        if (MV_OK != nRet)
+                        {
+                            std::cerr << "Error to set offsetX. Error code: " << nRet << std::endl;
+                        }
+                    }
+                    else if (key == "offsetY" && std::getline(lineStream, value))
+                    {
+                        if (m_offsetYEntry)
+                        {
+                            m_offsetYEntry->set_text(Glib::ustring(value));
+                        }
+
+                        int nRet = MV_CC_SetIntValue(m_selectedCam, "OffsetY", std::stoi(value));
+                        if (MV_OK != nRet)
+                        {
+                            std::cerr << "Error to set offsetY. Error code: " << nRet << std::endl;
+                        }
+                    }
+                    else if (key == "gain" && std::getline(lineStream, value))
+                    {
+                        if (m_gainEntry)
+                        {
+                            m_gainEntry->set_text(Glib::ustring(value));
+                        }
+
+                        int nRet = MV_CC_SetFloatValue(m_selectedCam, "Gain", std::stof(value));
+                        if (MV_OK != nRet)
+                        {
+                            std::cerr << "Error to set gain. Error code: " << nRet << std::endl;
+                        }
+                    }
+                }
+            }
+        }
+        settingsFile.close();
     }
 }
 

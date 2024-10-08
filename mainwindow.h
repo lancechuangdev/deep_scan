@@ -33,11 +33,18 @@ protected:
     Gtk::Button *m_openDrawingDialogBtn;
     Gtk::Button *m_openPatchDialogBtn;
     Gtk::Button *m_openTrainingDialogBtn;
-    Gtk::Label *m_exposureTimeLbl;
+    Gtk::Label *m_snLbl;
+    Gtk::Entry *m_exposureTimeEntry;
     Gtk::Label *m_frameRateLbl;
-    Gtk::Label *m_widthLbl;
-    Gtk::Label *m_heightLbl;
-    Gtk::Label *m_gainLbl;
+    Gtk::Entry *m_widthEntry;
+    Gtk::Entry *m_heightEntry;
+    Gtk::Entry *m_offsetXEntry;
+    Gtk::Entry *m_offsetYEntry;
+    Gtk::Entry *m_gainEntry;
+
+    Gtk::Button *m_savePresetBtn;
+    Gtk::Button *m_recallPresetBtn;
+
     Gtk::FileChooserButton *m_capturePickerFcb;
     Gtk::FileChooserButton *m_labelingPickerFcb;
     Gtk::FileChooserButton *m_patchPickerFcb;
@@ -58,6 +65,8 @@ protected:
     void onOpenDrawingClicked();
     void onOpenPreprocessingClicked();
     void onOpenTrainingClicked();
+    void onSavePresetClicked();
+    void onRecallPresetClicked();
 
 private:
     Glib::RefPtr<Gtk::Builder> m_builder;
