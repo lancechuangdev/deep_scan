@@ -3,11 +3,7 @@
 MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder)
     : Gtk::Window(obj),
       m_builder(refBuilder),
-      m_captureDuration(5),
-      m_captureInterval(0),
-      m_lastCaptureTimestamp(0),
-      m_frameQueue(20),
-      m_running(false)
+      m_frameQueue(20)
 {
     // Set the window title
     Gtk::Window *root;
@@ -16,16 +12,14 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
 
     // Get the button by ID and connect the signal handler.
     m_builder->get_widget("discover_btn", m_discoverBtn);
-    m_builder->get_widget("connect_btn", m_connectBtn);
+    m_builder->get_widget("view_settings_btn", m_viewSettingsBtn);
     m_builder->get_widget("start_btn", m_startBtn);
-    m_builder->get_widget("stop_btn", m_stopBtn);
-    m_builder->get_widget("disconnect_btn", m_disconnectBtn);
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
     m_builder->get_widget("open_patch_btn", m_openPatchDialogBtn);
     m_builder->get_widget("open_training_btn", m_openTrainingDialogBtn);
 
-    // Disable the start button initially
-    m_connectBtn->set_sensitive(false);
+    // Disable buttons initially
+    m_viewSettingsBtn -> set_sensitive(false);
     m_startBtn->set_sensitive(false);
     m_openDrawingDialogBtn->set_sensitive(false);
     m_openPatchDialogBtn->set_sensitive(false);
@@ -35,21 +29,13 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     {
         m_discoverBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onDiscoverClicked));
     }
-    if (m_connectBtn)
+    if (m_viewSettingsBtn)
     {
-        m_connectBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onConnectClicked));
+        m_viewSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onViewSettingsClicked));
     }
     if (m_startBtn)
     {
         m_startBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStartClicked));
-    }
-    if (m_stopBtn)
-    {
-        m_stopBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStopClicked));
-    }
-    if (m_disconnectBtn)
-    {
-        m_disconnectBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onDisconnectClicked));
     }
     if (m_openDrawingDialogBtn)
     {
@@ -92,29 +78,41 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("offset_y_entry", m_offsetYEntry);
     m_builder->get_widget("gain_entry", m_gainEntry);
 
-    m_builder->get_widget("save_preset_btn", m_savePresetBtn);
-    if (m_savePresetBtn)
+    m_builder->get_widget("save_settings_btn", m_saveSettingsBtn);
+    if (m_saveSettingsBtn)
     {
-        m_savePresetBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onSavePresetClicked));
+        m_saveSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onSavePresetClicked));
     }
-    m_builder->get_widget("recall_preset_btn", m_recallPresetBtn);
-    if (m_recallPresetBtn)
+    m_builder->get_widget("recall_settings_btn", m_recallSettingsBtn);
+    if (m_recallSettingsBtn)
     {
-        m_recallPresetBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onRecallPresetClicked));
+        m_recallSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onRecallPresetClicked));
     }
-
+    m_builder->get_widget("upload_settings_btn", m_uploadSettingsBtn);
+    if (m_uploadSettingsBtn)
+    {
+        m_uploadSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onUploadSettingsClicked));
+    }
 
     // Image Acquiring
+    m_builder->get_widget("capture_source_cbox", m_cameraComboBox);
+    if (m_cameraComboBox)
+    {
+        m_cameraComboBox->signal_changed().connect([this]()
+                                                   {
+            auto selectedCamera = m_cameraComboBox->get_active_text();
+            auto folder = m_capturePickerFcb->get_filename();
+            m_startBtn->set_sensitive(!folder.empty() && !selectedCamera.empty()); });
+    }
+
     m_builder->get_widget("capture_picker_fcb", m_capturePickerFcb);
     if (m_capturePickerFcb)
     {
         m_capturePickerFcb->signal_selection_changed().connect([this]()
                                                                {
-            // Get the selected folder path
+            auto selectedCamera = m_cameraComboBox->get_active_text();
             auto folder = m_capturePickerFcb->get_filename();
-
-            // Enable the start button if a folder is selected
-            m_startBtn->set_sensitive(!folder.empty()); });
+            m_startBtn->set_sensitive(!folder.empty() && !selectedCamera.empty()); });
     }
     m_builder->get_widget("capture_duration_sb", m_captureDurationSb);
     m_builder->get_widget("capture_rate_sb", m_captureRateSb);
@@ -212,33 +210,44 @@ int getSelectedCamIndex(Gtk::TreeView *camTreeView, Glib::RefPtr<Gtk::ListStore>
     return -1;
 }
 
+void saveImageAsync(FrameData frameData, void *deviceHandle, std::string folderPath)
+{
+    auto pData = frameData.pData;
+    auto pMetadata = frameData.pMetadata;
+
+    MV_SAVE_IMG_TO_FILE_PARAM stSaveFileParam;
+    memset(&stSaveFileParam, 0, sizeof(MV_SAVE_IMG_TO_FILE_PARAM));
+
+    stSaveFileParam.enImageType = MV_Image_Bmp;
+    stSaveFileParam.enPixelType = pMetadata->enPixelType;
+    stSaveFileParam.nWidth = pMetadata->nWidth;
+    stSaveFileParam.nHeight = pMetadata->nHeight;
+    stSaveFileParam.nDataLen = pMetadata->nFrameLen;
+    stSaveFileParam.pData = pData;
+
+    //sprintf(stSaveFileParam.pImagePath, "%sImage_ts%d_fn%d.bmp", folderPath.c_str(), pMetadata->nHostTimeStamp, pMetadata->nFrameNum);
+    sprintf(stSaveFileParam.pImagePath, "%sImage_ts%" PRId64 "_fn%d_dv%" PRIuPTR ".bmp", 
+            folderPath.c_str(), pMetadata->nHostTimeStamp, pMetadata->nFrameNum, 
+            reinterpret_cast<uintptr_t>(deviceHandle));
+
+    int nRet = MV_CC_SaveImageToFile(deviceHandle, &stSaveFileParam);
+    if (nRet != MV_OK)
+    {
+        std::cout << "Failed to save image to file. Error code: " << nRet << std::endl;
+    }
+}
+
 void MainWindow::onTreeviewSelectionChanged()
 {
     int nIndex = getSelectedCamIndex(m_camTreeView, m_camListStore);
-    if (nIndex < 0)
-    {
-        std::cout << "No camera was selected." << std::endl;
-        m_connectBtn->set_sensitive(false);
-    }
-    else
-    {
-        MV_CC_DEVICE_INFO *pSelectedCam = m_camList.pDeviceInfo[nIndex];
-        int nRet = MV_CC_CreateHandle(&m_selectedCam, pSelectedCam);
-        if (nRet != MV_OK)
-        {
-            std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
-        }
-        else
-        {
-            m_connectBtn->set_sensitive(true);
-        }
-    }
+    m_viewSettingsBtn->set_sensitive(nIndex >= 0);
 }
 
 void MainWindow::onDiscoverClicked()
 {
     // Clear the TreeView before adding new data
     m_camListStore->clear();
+    m_cameraComboBox->remove_all();
 
     do
     {
@@ -264,21 +273,21 @@ void MainWindow::onDiscoverClicked()
                 }
 
                 Gtk::TreeModel::Row row = *(m_camListStore->append());
-
                 if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
                 {
-                    row[m_camcols.col_model] = Glib::ustring(reinterpret_cast<const char *>(pDeviceInfo->SpecialInfo.stGigEInfo.chModelName));
-                    row[m_camcols.col_friendly_name] = Glib::ustring(reinterpret_cast<const char *>(pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName));
+                    auto modelName = pDeviceInfo->SpecialInfo.stGigEInfo.chModelName;
+                    auto friendlyName = pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName;
+                    auto serialNumber = pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber;
+                    row[m_camcols.col_model] = Glib::ustring(reinterpret_cast<const char *>(modelName));
+                    row[m_camcols.col_friendly_name] = Glib::ustring(reinterpret_cast<const char *>(friendlyName));
                     row[m_camcols.col_ip] = getIpV4AddressString(pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp);
-                    row[m_camcols.col_sn] = Glib::ustring(reinterpret_cast<const char *>(pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber));
+                    row[m_camcols.col_sn] = Glib::ustring(reinterpret_cast<const char *>(serialNumber));
+
+                    // Add the camera name to the combo box
+                    m_cameraComboBox->append(std::string((char *)serialNumber));
                 }
             }
-            // // for testing
-            // Gtk::TreeModel::Row row = *(m_camListStore->append());
-            // row[m_camcols.col_model] = Glib::ustring("model name");
-            // row[m_camcols.col_friendly_name] = Glib::ustring("friendly name");
-            // row[m_camcols.col_ip] = Glib::ustring("1.0.0.0");
-            // row[m_camcols.col_sn] = Glib::ustring("ABC123456");
+            m_cameraComboBox->append("All Cameras");
         }
         else
         {
@@ -288,7 +297,7 @@ void MainWindow::onDiscoverClicked()
     } while (false);
 }
 
-void MainWindow::onConnectClicked()
+void MainWindow::onViewSettingsClicked()
 {
     int nIndex = getSelectedCamIndex(m_camTreeView, m_camListStore);
     if (nIndex < 0)
@@ -297,90 +306,45 @@ void MainWindow::onConnectClicked()
         return;
     }
 
-    // Create device handler if needed
-    if (!m_selectedCam)
+    void *deviceHandle;
+    MV_CC_DEVICE_INFO *pSelectedCam = m_camList.pDeviceInfo[nIndex];
+    int nRet = MV_CC_CreateHandle(&deviceHandle, pSelectedCam);
+    if (nRet != MV_OK)
     {
-        MV_CC_DEVICE_INFO *pSelectedCam = m_camList.pDeviceInfo[nIndex];
-        int nRet = MV_CC_CreateHandle(&m_selectedCam, pSelectedCam);
-        if (nRet != MV_OK)
-        {
-            std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
-            return;
-        }
+        std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
+        return;
     }
 
     // Connect device
-    int nRet = MV_CC_OpenDevice(m_selectedCam);
+    nRet = MV_CC_OpenDevice(deviceHandle);
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
         return;
     }
 
-    // Detect network optimal package size(It only works for the GigE camera)
-    if (m_camList.pDeviceInfo[nIndex]->nTLayerType == MV_GIGE_DEVICE)
-    {
-        int nPacketSize = MV_CC_GetOptimalPacketSize(m_selectedCam);
-        if (nPacketSize > 0)
-        {
-            nRet = MV_CC_SetIntValue(m_selectedCam, "GevSCPSPacketSize", nPacketSize);
-            if (nRet != MV_OK)
-            {
-                std::cout << "Set Packet Size fail. Error code: " << nRet << std::endl;
-            }
-        }
-        else
-        {
-            std::cout << "Get Packet Size fail. Error code: " << nRet << std::endl;
-        }
-    }
+    populateDeviceSettings(deviceHandle);
 
-    // Enable trigger mode
-    nRet = MV_CC_SetEnumValue(m_selectedCam, "TriggerMode", 1);
-    if (MV_OK != nRet)
-    {
-        std::cout << "MV_CC_SetTriggerMode fail! Error code: " << nRet << std::endl;
-    }
-
-    // Set trigger source
-    nRet = MV_CC_SetEnumValue(m_selectedCam, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
-    if (MV_OK != nRet)
-    {
-        std::cout << "MV_CC_SetTriggerSource fail! Error code:" << nRet << std::endl;
-    }
-
-    // Register image callback
-    auto imageCaptureCallback = [](unsigned char *pData, MV_FRAME_OUT_INFO_EX *pFrameInfo, void *pUser)
-    {
-        if (pFrameInfo)
-        {
-            std::cout << "GetOneFrame, nDevTimeStampHigh: " << pFrameInfo->nDevTimeStampHigh
-                      << ", nDevTimeStampLow: " << pFrameInfo->nDevTimeStampLow
-                      << ", nHostTimeStamp: " << pFrameInfo->nHostTimeStamp
-                      << std::endl;
-        }
-
-        // Cast pUser to MainWindow*
-        MainWindow *pThis = static_cast<MainWindow *>(pUser);
-
-        pThis->m_frameQueue.enqueue(FrameData(pData, pFrameInfo));
-    };
-
-    nRet = MV_CC_RegisterImageCallBackEx(m_selectedCam, imageCaptureCallback, this);
+    // Close device
+    nRet = MV_CC_CloseDevice(deviceHandle);
     if (nRet != MV_OK)
     {
-        std::cout << "MV_CC_RegisterImageCallBackEx fail. Error code: " << nRet << std::endl;
-        return;
+        std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
     }
 
-    populateDeviceSettings();
+    // Destroy handle
+    nRet = MV_CC_DestroyHandle(deviceHandle);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
+    }
 }
 
-void MainWindow::populateDeviceSettings()
+void MainWindow::populateDeviceSettings(void *deviceHandle)
 {
     // Serial number
     MVCC_STRINGVALUE sn = {0};
-    int nRet = MV_CC_GetStringValue(m_selectedCam, "DeviceSerialNumber", &sn);
+    int nRet = MV_CC_GetStringValue(deviceHandle, "DeviceSerialNumber", &sn);
     if (MV_OK == nRet && m_snLbl)
     {
         m_snLbl->set_text(Glib::ustring(sn.chCurValue));
@@ -388,7 +352,7 @@ void MainWindow::populateDeviceSettings()
 
     // Exposure time
     MVCC_FLOATVALUE exposureTime = {0};
-    nRet = MV_CC_GetFloatValue(m_selectedCam, "ExposureTime", &exposureTime);
+    nRet = MV_CC_GetFloatValue(deviceHandle, "ExposureTime", &exposureTime);
     if (MV_OK == nRet && m_exposureTimeEntry)
     {
         // Convert float to string
@@ -405,7 +369,7 @@ void MainWindow::populateDeviceSettings()
 
     // Resulting Frame Rate
     MVCC_FLOATVALUE frameRate = {0};
-    nRet = MV_CC_GetFloatValue(m_selectedCam, "ResultingFrameRate", &frameRate);
+    nRet = MV_CC_GetFloatValue(deviceHandle, "ResultingFrameRate", &frameRate);
     if (MV_OK == nRet && m_frameRateLbl)
     {
         // Convert float to string
@@ -422,7 +386,7 @@ void MainWindow::populateDeviceSettings()
 
     // Width
     MVCC_INTVALUE width = {0};
-    nRet = MV_CC_GetIntValue(m_selectedCam, "Width", &width);
+    nRet = MV_CC_GetIntValue(deviceHandle, "Width", &width);
     if (MV_OK == nRet && m_widthEntry)
     {
         m_widthEntry->set_text(std::to_string(width.nCurValue));
@@ -434,7 +398,7 @@ void MainWindow::populateDeviceSettings()
 
     // Height
     MVCC_INTVALUE height = {0};
-    nRet = MV_CC_GetIntValue(m_selectedCam, "Height", &height);
+    nRet = MV_CC_GetIntValue(deviceHandle, "Height", &height);
     if (MV_OK == nRet && m_heightEntry)
     {
         m_heightEntry->set_text(std::to_string(height.nCurValue));
@@ -446,7 +410,7 @@ void MainWindow::populateDeviceSettings()
 
     // Offset X
     MVCC_INTVALUE offsetX = {0};
-    nRet = MV_CC_GetIntValue(m_selectedCam, "OffsetX", &offsetX);
+    nRet = MV_CC_GetIntValue(deviceHandle, "OffsetX", &offsetX);
     if (MV_OK == nRet && m_offsetXEntry)
     {
         m_offsetXEntry->set_text(std::to_string(offsetX.nCurValue));
@@ -458,7 +422,7 @@ void MainWindow::populateDeviceSettings()
 
     // Offset Y
     MVCC_INTVALUE offsetY = {0};
-    nRet = MV_CC_GetIntValue(m_selectedCam, "OffsetY", &offsetY);
+    nRet = MV_CC_GetIntValue(deviceHandle, "OffsetY", &offsetY);
     if (MV_OK == nRet && m_offsetYEntry)
     {
         m_offsetYEntry->set_text(std::to_string(offsetY.nCurValue));
@@ -470,7 +434,7 @@ void MainWindow::populateDeviceSettings()
 
     // Gain
     MVCC_FLOATVALUE gain = {0};
-    nRet = MV_CC_GetFloatValue(m_selectedCam, "Gain", &gain);
+    nRet = MV_CC_GetFloatValue(deviceHandle, "Gain", &gain);
     if (MV_OK == nRet && m_gainEntry)
     {
         // Convert float to string
@@ -532,8 +496,13 @@ void MainWindow::onSavePresetClicked()
         buffer << settingsFile.rdbuf();
         settingsFile.close();
     }
+
     std::string content = buffer.str();
-    std::string serialNumber = m_snLbl->get_text();
+    std::string serialNumber;
+    if (m_snLbl)
+    {
+        serialNumber = m_snLbl->get_text();
+    }
     std::string sectionHeader = "[" + serialNumber + "]";
     std::stringstream sectionContent;
     sectionContent << sectionHeader << std::endl;
@@ -642,24 +611,12 @@ void MainWindow::onRecallPresetClicked()
                         {
                             m_exposureTimeEntry->set_text(Glib::ustring(value));
                         }
-
-                        int nRet = MV_CC_SetFloatValue(m_selectedCam, "ExposureTime", std::stof(value));
-                        if (MV_OK != nRet)
-                        {
-                            std::cerr << "Error to set exposure time. Error code: " << nRet << std::endl;
-                        }
                     }
                     else if (key == "width" && std::getline(lineStream, value))
                     {
                         if (m_widthEntry)
                         {
                             m_widthEntry->set_text(Glib::ustring(value));
-                        }
-
-                        int nRet = MV_CC_SetIntValue(m_selectedCam, "Width", std::stoi(value));
-                        if (MV_OK != nRet)
-                        {
-                            std::cerr << "Error to set width. Error code: " << nRet << std::endl;
                         }
                     }
                     else if (key == "height" && std::getline(lineStream, value))
@@ -668,24 +625,12 @@ void MainWindow::onRecallPresetClicked()
                         {
                             m_heightEntry->set_text(Glib::ustring(value));
                         }
-
-                        int nRet = MV_CC_SetIntValue(m_selectedCam, "Height", std::stoi(value));
-                        if (MV_OK != nRet)
-                        {
-                            std::cerr << "Error to set height. Error code: " << nRet << std::endl;
-                        }
                     }
                     else if (key == "offsetX" && std::getline(lineStream, value))
                     {
                         if (m_offsetXEntry)
                         {
                             m_offsetXEntry->set_text(Glib::ustring(value));
-                        }
-
-                        int nRet = MV_CC_SetIntValue(m_selectedCam, "OffsetX", std::stoi(value));
-                        if (MV_OK != nRet)
-                        {
-                            std::cerr << "Error to set offsetX. Error code: " << nRet << std::endl;
                         }
                     }
                     else if (key == "offsetY" && std::getline(lineStream, value))
@@ -694,24 +639,12 @@ void MainWindow::onRecallPresetClicked()
                         {
                             m_offsetYEntry->set_text(Glib::ustring(value));
                         }
-
-                        int nRet = MV_CC_SetIntValue(m_selectedCam, "OffsetY", std::stoi(value));
-                        if (MV_OK != nRet)
-                        {
-                            std::cerr << "Error to set offsetY. Error code: " << nRet << std::endl;
-                        }
                     }
                     else if (key == "gain" && std::getline(lineStream, value))
                     {
                         if (m_gainEntry)
                         {
                             m_gainEntry->set_text(Glib::ustring(value));
-                        }
-
-                        int nRet = MV_CC_SetFloatValue(m_selectedCam, "Gain", std::stof(value));
-                        if (MV_OK != nRet)
-                        {
-                            std::cerr << "Error to set gain. Error code: " << nRet << std::endl;
                         }
                     }
                 }
@@ -721,128 +654,242 @@ void MainWindow::onRecallPresetClicked()
     }
 }
 
-void saveImageAsync(FrameData frameData, void *deviceHandle, std::string folderPath)
+void MainWindow::onUploadSettingsClicked()
 {
-    auto pData = frameData.pData;
-    auto pMetadata = frameData.pMetadata;
+    // Create device handle
+    void* deviceHandle = nullptr;
+    if (!m_snLbl)
+    {
+        return;
+    }
+    deviceHandle = getDeviceHandleBySerialNumber(m_snLbl->get_text());
+    if (deviceHandle == nullptr)
+    {
+        std::cout << "getDeviceHandleBySerialNumber fail! deviceHandle is nullptr" << std::endl;
+        return;
+    }
 
-    MV_SAVE_IMG_TO_FILE_PARAM stSaveFileParam;
-    memset(&stSaveFileParam, 0, sizeof(MV_SAVE_IMG_TO_FILE_PARAM));
-
-    stSaveFileParam.enImageType = MV_Image_Bmp;
-    stSaveFileParam.enPixelType = pMetadata->enPixelType;
-    stSaveFileParam.nWidth = pMetadata->nWidth;
-    stSaveFileParam.nHeight = pMetadata->nHeight;
-    stSaveFileParam.nDataLen = pMetadata->nFrameLen;
-    stSaveFileParam.pData = pData;
-
-    sprintf(stSaveFileParam.pImagePath, "%sImage_w%d_h%d_fn%d.bmp", folderPath.c_str(), stSaveFileParam.nWidth, stSaveFileParam.nHeight, pMetadata->nFrameNum);
-
-    int nRet = MV_CC_SaveImageToFile(deviceHandle, &stSaveFileParam);
+    // Connect to the device
+    int nRet = MV_CC_OpenDevice(deviceHandle);
     if (nRet != MV_OK)
     {
-        std::cout << "Failed to save image to file. Error code: " << nRet << std::endl;
+        std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
+        return;
+    }
+
+    // Set device settings
+    if (m_exposureTimeEntry)
+    {
+        auto exposureTime = m_exposureTimeEntry->get_text();
+        nRet = MV_CC_SetFloatValue(deviceHandle, "ExposureTime", std::stof(exposureTime));
+        if (MV_OK != nRet)
+        {
+            std::cerr << "Error to set exposure time. Error code: " << nRet << std::endl;
+        }
+    }
+
+    if (m_widthEntry)
+    {
+        auto width = m_widthEntry->get_text();
+        nRet = MV_CC_SetIntValue(deviceHandle, "Width", std::stoi(width));
+        if (MV_OK != nRet)
+        {
+            std::cerr << "Error to set width. Error code: " << nRet << std::endl;
+        }
+    }
+
+    if (m_heightEntry)
+    {
+        auto height = m_heightEntry->get_text();
+        nRet = MV_CC_SetIntValue(deviceHandle, "Height", std::stoi(height));
+        if (MV_OK != nRet)
+        {
+            std::cerr << "Error to set height. Error code: " << nRet << std::endl;
+        }
+    }
+
+    if (m_offsetXEntry)
+    {
+        auto offsetX = m_offsetXEntry->get_text();
+        nRet = MV_CC_SetIntValue(deviceHandle, "OffsetX", std::stoi(offsetX));
+        if (MV_OK != nRet)
+        {
+            std::cerr << "Error to set offsetX. Error code: " << nRet << std::endl;
+        }
+    }
+
+    if (m_offsetYEntry)
+    {
+        auto offsetY = m_offsetYEntry->get_text();
+        nRet = MV_CC_SetIntValue(deviceHandle, "OffsetY", std::stoi(offsetY));
+        if (MV_OK != nRet)
+        {
+            std::cerr << "Error to set offsetY. Error code: " << nRet << std::endl;
+        }
+    }
+
+    if (m_gainEntry)
+    {
+        auto gain = m_gainEntry->get_text();
+        nRet = MV_CC_SetFloatValue(deviceHandle, "Gain", std::stof(gain));
+        if (MV_OK != nRet)
+        {
+            std::cerr << "Error to set gain. Error code: " << nRet << std::endl;
+        }
+    }
+
+    // Close device
+    nRet = MV_CC_CloseDevice(deviceHandle);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
+    }
+
+    // Destroy handle
+    nRet = MV_CC_DestroyHandle(deviceHandle);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
     }
 }
 
-void MainWindow::onStartClicked()
+void *MainWindow::getDeviceHandleBySerialNumber(std::string sn)
 {
-    m_running = true;
-
-    if (m_capturePickerFcb)
+    for (unsigned int i = 0; i < m_camList.nDeviceNum; i++)
     {
-        m_imageFolderPath = m_capturePickerFcb->get_filename();
-
-        // Get current time and format it as YYYYMMDD_HHMMSS
-        char timestamp[20];
-        std::time_t now = std::time(nullptr);
-        std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", std::localtime(&now));
-
-        // Append timestamp to the folder path
-        std::string timestampStr(timestamp);
-        m_imageFolderPath += "/" + timestampStr;
-
-        // Create the subfolder if it doesn't exist
-        try
+        MV_CC_DEVICE_INFO *pDeviceInfo = m_camList.pDeviceInfo[i];
+        if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
         {
-            if (!std::filesystem::exists(m_imageFolderPath))
+            auto serialNumber = pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber;
+            std::string serialNumberStr(reinterpret_cast<const char *>(serialNumber));
+            if (serialNumberStr == sn)
             {
-                std::filesystem::create_directory(m_imageFolderPath);
-            }
-        }
-        catch (const std::filesystem::filesystem_error &e)
-        {
-            std::cerr << "Error creating directory: " << e.what() << std::endl;
-        }
-    }
-    if (m_captureDurationSb)
-    {
-        m_captureDuration = m_captureDurationSb->get_value();
-    }
-    if (m_captureRateSb)
-    {
-        int captureRate = m_captureRateSb->get_value();
-        // Calculate the capture interval (in milliseconds) based on capture rate (FPS)
-        m_captureInterval = 1000.0 / static_cast<double>(captureRate);
-    }
-
-    // Initialize progress bar
-    m_capturePb->set_fraction(0.0); // Start at 0%
-    m_captureElapsedTime = 0;
-
-    // Start the timeout for the progress bar update using a lambda function
-    m_captureTimeoutConnection = Glib::signal_timeout().connect(
-        [this]() -> bool
-        {
-            m_captureElapsedTime += 100; // Increase the elapsed time by 100 ms
-
-            // Calculate the capture duration in milliseconds
-            auto duration = m_captureDuration * 60 * 1000;
-            double fraction = static_cast<double>(m_captureElapsedTime) / duration;
-            m_capturePb->set_fraction(fraction);
-
-            if (m_captureElapsedTime >= duration)
-            {
-                m_running = false;
-
-                // Time's up, stop the capturing and reset the progress bar
-                int nRet = MV_CC_StopGrabbing(m_selectedCam);
+                void *deviceHandle;
+                int nRet = MV_CC_CreateHandle(&deviceHandle, pDeviceInfo);
                 if (nRet != MV_OK)
                 {
-                    std::cout << "MV_CC_StopGrabbing fail. Error code: " << nRet << std::endl;
+                    std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
+                    return nullptr;
                 }
-                m_capturePb->set_fraction(1.0);
+                return deviceHandle;
+            }
+        }
+    }
 
-                return false; // Return false to stop the timeout
+    return nullptr;
+}
+
+std::vector<void*> MainWindow::getAllDeviceHandles()
+{
+    std::vector<void*> deviceHandles;  // To store all device handles
+
+    for (unsigned int i = 0; i < m_camList.nDeviceNum; i++)
+    {
+        MV_CC_DEVICE_INFO *pDeviceInfo = m_camList.pDeviceInfo[i];
+        if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
+        {
+            void *deviceHandle;
+            int nRet = MV_CC_CreateHandle(&deviceHandle, pDeviceInfo);
+            if (nRet != MV_OK)
+            {
+                std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
+                continue;  // Skip this device if handle creation failed
             }
 
-            return true; // Continue the timeout
-        },
-        100 // Update every 100 milliseconds
-    );
+            deviceHandles.push_back(deviceHandle);  // Add handle to the list
+        }
+    }
+
+    return deviceHandles;  // Return all device handles
+}
+
+void MainWindow::captureImages(void *deviceHandle, int captureDurationSec, double captureIntervalMs, std::string captureDestFolder)
+{
+    // Create a shared pointer to manage the lifetime
+    auto running = std::make_shared<bool>(true);
+    
+    // Connect to the device
+    int nRet = MV_CC_OpenDevice(deviceHandle);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
+        return;
+    }
+
+    // Detect network optimal package size(It only works for the GigE camera)
+    int nPacketSize = MV_CC_GetOptimalPacketSize(deviceHandle);
+    if (nPacketSize > 0)
+    {
+        nRet = MV_CC_SetIntValue(deviceHandle, "GevSCPSPacketSize", nPacketSize);
+        if (nRet != MV_OK)
+        {
+            std::cout << "Set Packet Size fail. Error code: " << nRet << std::endl;
+        }
+    }
+    else
+    {
+        std::cout << "Get Packet Size fail. Error code: " << nRet << std::endl;
+    }
+
+    // Enable trigger mode
+    nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerMode", 1);
+    if (MV_OK != nRet)
+    {
+        std::cout << "MV_CC_SetTriggerMode fail! Error code: " << nRet << std::endl;
+    }
+
+    // Set trigger source
+    nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
+    if (MV_OK != nRet)
+    {
+        std::cout << "MV_CC_SetTriggerSource fail! Error code:" << nRet << std::endl;
+    }
+
+    // Register image callback
+    auto imageCaptureCallback = [](unsigned char *pData, MV_FRAME_OUT_INFO_EX *pFrameInfo, void *pUser)
+    {
+        if (pFrameInfo)
+        {
+            std::cout << "GetOneFrame, nDevTimeStampHigh: " << pFrameInfo->nDevTimeStampHigh
+                    << ", nDevTimeStampLow: " << pFrameInfo->nDevTimeStampLow
+                    << ", nHostTimeStamp: " << pFrameInfo->nHostTimeStamp
+                    << std::endl;
+        }
+
+        // Cast pUser to MainWindow*
+        MainWindow *pThis = static_cast<MainWindow *>(pUser);
+
+        pThis->m_frameQueue.enqueue(FrameData(pData, pFrameInfo));
+    };
+
+    nRet = MV_CC_RegisterImageCallBackEx(deviceHandle, imageCaptureCallback, this);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_RegisterImageCallBackEx fail. Error code: " << nRet << std::endl;
+        return;
+    }
 
     // Process images in a separate thread
-    auto processFrameAsync = [this]()
+    auto processFrameAsync = [this, deviceHandle, captureDestFolder, running]()
     {
         // Ensure that the folder path ends with a slash
-        std::string folderPath = m_imageFolderPath;
-        if (!folderPath.empty() && folderPath.back() != '/')
+        std::string filePath = captureDestFolder;
+        if (!filePath.empty() && filePath.back() != '/')
         {
-            folderPath += '/';
+            filePath += '/';
         }
 
         FrameData frameData(nullptr, nullptr); // Initialize FrameData with null pointers
 
-        while (m_running)
+        while (*running)
         {
             if (m_frameQueue.dequeue(frameData))
             {
                 // Save image async
-                std::async(std::launch::async, saveImageAsync, frameData, m_selectedCam, folderPath);
+                std::async(std::launch::async, saveImageAsync, frameData, deviceHandle, filePath);
             }
             else
             {
-                std::cout << "No frame in the queue" << std::endl;
                 std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Prevent CPU overuse
             }
         }
@@ -855,19 +902,21 @@ void MainWindow::onStartClicked()
     processingThread.detach();
 
     // Capture images in a separate thread
-    auto captureFrameAsync = [this]()
+    auto captureFrameAsync = [this, deviceHandle, captureIntervalMs, running]()
     {
-        while (m_running)
+        uint64_t lastCaptureTimestamp = 0;
+
+        while (*running)
         {
             auto currentTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-            double elapsed = currentTimeInMs - m_lastCaptureTimestamp;
+            double elapsed = currentTimeInMs - lastCaptureTimestamp;
 
-            if (elapsed >= m_captureInterval)
+            if (elapsed >= captureIntervalMs)
             {
                 std::cout << "Start to capture frames at time: " << currentTimeInMs << std::endl;
-                m_lastCaptureTimestamp = currentTimeInMs;
+                lastCaptureTimestamp = currentTimeInMs;
 
-                int nRet = MV_CC_SetCommandValue(m_selectedCam, "TriggerSoftware");
+                int nRet = MV_CC_SetCommandValue(deviceHandle, "TriggerSoftware");
                 if (MV_OK != nRet)
                 {
                     std::cout << "Failed to capture frames via TriggerSoftware. Error code: " << nRet << std::endl;
@@ -884,49 +933,160 @@ void MainWindow::onStartClicked()
     // Detach the thread to let it run in the background and won't be able to join later
     capturingThread.detach();
 
+    // Start the capture timer
+    sigc::connection timeoutConnection;
+    uint64_t captureElapsedTime = 0;
+    timeoutConnection = Glib::signal_timeout().connect(
+        [this, deviceHandle, captureDurationSec, captureElapsedTime, timeoutConnection, running]() mutable -> bool
+        {
+            captureElapsedTime += 100; // Increase the elapsed time by 100 ms
+            auto duration = captureDurationSec * 1000; // Calculate the capture duration in milliseconds
+            if (captureElapsedTime >= duration)
+            {
+                *running = false;
+
+                // Clear the frame queue
+                this->m_frameQueue.clear();
+
+                // Time's up, stop the capturing
+                int nRet = MV_CC_StopGrabbing(deviceHandle);
+                if (nRet != MV_OK)
+                {
+                    std::cout << "MV_CC_StopGrabbing fail. Error code: " << nRet << std::endl;
+                }
+
+                // Close the device
+                nRet = MV_CC_CloseDevice(deviceHandle);
+                if (nRet != MV_OK)
+                {
+                    std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
+                }
+
+                // Destory the device handle
+                nRet = MV_CC_DestroyHandle(deviceHandle);
+                if (nRet != MV_OK)
+                {
+                    std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
+                }
+
+                // Disconnect the timeout handler
+                timeoutConnection.disconnect();
+
+                // Return false to stop the timeout
+                return false;
+            }
+
+            return true; // Continue the timeout
+        },
+        100 // Update every 100 milliseconds
+    );
+
     // Start grab images
-    int nRet = MV_CC_StartGrabbing(m_selectedCam);
+    nRet = MV_CC_StartGrabbing(deviceHandle);
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_StartGrabbing fail. Error code: " << nRet << std::endl;
     }
 }
 
-void MainWindow::onStopClicked()
+void MainWindow::onStartClicked()
 {
-    m_running = false;
+    std::vector<void*> deviceHandles;
+    int captureDurationSec = 0;
+    double captureIntervalMs = 0.0;
+    std::string captureDestFolder;
+    uint64_t captureElapsedTime = 0;
 
-    // Stop the timeout
-    if (m_captureTimeoutConnection.connected())
+    if (m_cameraComboBox)
     {
-        m_captureTimeoutConnection.disconnect();
+        auto selectedCaptureDevice = m_cameraComboBox->get_active_text();
+        if (selectedCaptureDevice == "All Cameras")
+        {
+            deviceHandles = getAllDeviceHandles();
+        }
+        else
+        {
+            // Create device handle
+            auto deviceHandle = getDeviceHandleBySerialNumber(selectedCaptureDevice);
+            if (deviceHandle == nullptr)
+            {
+                std::cout << "getDeviceHandleBySerialNumber fail! deviceHandle is nullptr" << std::endl;
+            }
+            deviceHandles.push_back(deviceHandle);
+        }
     }
 
-    int nRet = MV_CC_StopGrabbing(m_selectedCam);
-    if (nRet != MV_OK)
+    if (m_capturePickerFcb)
     {
-        std::cout << "MV_CC_StopGrabbing fail. Error code: " << nRet << std::endl;
-    }
-}
+        captureDestFolder = m_capturePickerFcb->get_filename();
 
-void MainWindow::onDisconnectClicked()
-{
-    int nRet = MV_CC_CloseDevice(m_selectedCam);
-    if (nRet != MV_OK)
+        // Get current time and format it as YYYYMMDD_HHMMSS
+        char timestamp[20];
+        std::time_t now = std::time(nullptr);
+        std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", std::localtime(&now));
+
+        // Append timestamp to the folder path
+        std::string timestampStr(timestamp);
+        captureDestFolder += "/" + timestampStr;
+
+        // Create the subfolder if it doesn't exist
+        try
+        {
+            if (!std::filesystem::exists(captureDestFolder))
+            {
+                std::filesystem::create_directory(captureDestFolder);
+            }
+        }
+        catch (const std::filesystem::filesystem_error &e)
+        {
+            std::cerr << "Error creating directory: " << e.what() << std::endl;
+        }
+    }
+    
+    if (m_captureDurationSb)
     {
-        std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
+        captureDurationSec = m_captureDurationSb->get_value();
     }
 
-    // destroy handle
-    nRet = MV_CC_DestroyHandle(m_selectedCam);
-    if (nRet != MV_OK)
+    if (m_captureRateSb)
     {
-        std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
+        int captureRate = m_captureRateSb->get_value();
+        // Calculate the capture interval (in milliseconds) based on capture rate (FPS)
+        captureIntervalMs = 1000.0 / static_cast<double>(captureRate);
     }
 
-    m_selectedCam = nullptr;
+    // Initialize progress bar
+    m_capturePb->set_fraction(0.0); // Start at 0%
 
-    clearDeviceSettings();
+    // Start the timeout for the progress bar update using a lambda function
+    Glib::signal_timeout().connect(
+        [this, captureDurationSec, captureElapsedTime]() mutable -> bool
+        {
+            captureElapsedTime += 100; // Increase the elapsed time by 100 ms
+            auto duration = captureDurationSec * 1000; // Calculate the capture duration in milliseconds
+            double fraction = static_cast<double>(captureElapsedTime) / duration;
+            m_capturePb->set_fraction(fraction);
+
+            if (captureElapsedTime >= duration)
+            {
+                m_capturePb->set_fraction(1.0);
+                return false; // Return false to stop the timeout
+            }
+
+            return true; // Continue the timeout
+        },
+        100 // Update every 100 milliseconds
+    );
+
+    // Start capturing
+    for (void *deviceHandle : deviceHandles)
+    {
+        auto currentTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        std::cout << "Begin captureImages for device: " << deviceHandle << " at " << currentTimeInMs << std::endl;
+
+        // Launch captureImages asynchronously for each device
+        std::async(std::launch::async, &MainWindow::captureImages, this, deviceHandle, captureDurationSec, captureIntervalMs, captureDestFolder);
+    }
 }
 
 void MainWindow::onOpenDrawingClicked()

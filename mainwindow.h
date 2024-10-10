@@ -15,6 +15,8 @@
 #include <filesystem>
 #include <cstdio>
 #include <fstream>
+#include <inttypes.h>  // For PRId64
+#include <cstdint>     // For uintptr_t
 
 class MainWindow : public Gtk::Window
 {
@@ -26,10 +28,8 @@ protected:
     // Member widgets:
     Gtk::TreeView *m_camTreeView;
     Gtk::Button *m_discoverBtn;
-    Gtk::Button *m_connectBtn;
+    Gtk::Button *m_viewSettingsBtn;
     Gtk::Button *m_startBtn;
-    Gtk::Button *m_stopBtn;
-    Gtk::Button *m_disconnectBtn;
     Gtk::Button *m_openDrawingDialogBtn;
     Gtk::Button *m_openPatchDialogBtn;
     Gtk::Button *m_openTrainingDialogBtn;
@@ -42,9 +42,11 @@ protected:
     Gtk::Entry *m_offsetYEntry;
     Gtk::Entry *m_gainEntry;
 
-    Gtk::Button *m_savePresetBtn;
-    Gtk::Button *m_recallPresetBtn;
+    Gtk::Button *m_saveSettingsBtn;
+    Gtk::Button *m_recallSettingsBtn;
+    Gtk::Button *m_uploadSettingsBtn;
 
+    Gtk::ComboBoxText *m_cameraComboBox;
     Gtk::FileChooserButton *m_capturePickerFcb;
     Gtk::FileChooserButton *m_labelingPickerFcb;
     Gtk::FileChooserButton *m_patchPickerFcb;
@@ -57,37 +59,31 @@ protected:
     
     // Signal handlers:
     void onDiscoverClicked();
-    void onConnectClicked();
+    void onViewSettingsClicked();
     void onStartClicked();
-    void onStopClicked();
-    void onDisconnectClicked();
     void onTreeviewSelectionChanged();
     void onOpenDrawingClicked();
     void onOpenPreprocessingClicked();
     void onOpenTrainingClicked();
     void onSavePresetClicked();
     void onRecallPresetClicked();
+    void onUploadSettingsClicked();
 
 private:
     Glib::RefPtr<Gtk::Builder> m_builder;
     Glib::RefPtr<Gtk::ListStore> m_camListStore;
     MV_CC_DEVICE_INFO_LIST m_camList;
     CamColumns m_camcols;
-    void *m_selectedCam;
-    std::string m_imageFolderPath;
-    int64_t m_lastCaptureTimestamp;
-    int m_captureDuration;
-    double m_captureInterval;
-    sigc::connection m_captureTimeoutConnection;
-    int m_captureElapsedTime; // in milliseconds
     FrameQueue m_frameQueue;
-    std::atomic<bool> m_running;
     std::string m_imageLabelingPath;
     std::string m_preprocessImagePath;
     std::string m_trainModelImagesPath;
     std::string m_trainModelMasksPath;
-    void populateDeviceSettings();
+    void populateDeviceSettings(void *deviceHandle);
     void clearDeviceSettings();
+    void *getDeviceHandleBySerialNumber(std::string sn);
+    std::vector<void*> getAllDeviceHandles();
+    void captureImages(void *deviceHandle, int captureDurationSec, double captureIntervalMs, std::string captureDestFolder);
 };
 
 #endif // DEEP_SCAN_MAINWINDOW_H

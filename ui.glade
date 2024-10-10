@@ -4,7 +4,7 @@
   <requires lib="gtk+" version="3.24"/>
   <object class="GtkAdjustment" id="capture_duration_adjustment">
     <property name="lower">1</property>
-    <property name="upper">30</property>
+    <property name="upper">36000</property>
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
   </object>
@@ -82,8 +82,8 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkButton" id="disconnect_btn">
-                    <property name="label" translatable="yes">Disconnect</property>
+                  <object class="GtkButton" id="view_settings_btn">
+                    <property name="label" translatable="yes">View Settings</property>
                     <property name="visible">True</property>
                     <property name="can-focus">True</property>
                     <property name="receives-default">True</property>
@@ -97,24 +97,6 @@
                     <property name="fill">True</property>
                     <property name="pack-type">end</property>
                     <property name="position">1</property>
-                  </packing>
-                </child>
-                <child>
-                  <object class="GtkButton" id="connect_btn">
-                    <property name="label" translatable="yes">Connect</property>
-                    <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
-                    <property name="margin-start">10</property>
-                    <property name="margin-end">10</property>
-                    <property name="margin-top">10</property>
-                    <property name="margin-bottom">10</property>
-                  </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="pack-type">end</property>
-                    <property name="position">2</property>
                   </packing>
                 </child>
               </object>
@@ -176,30 +158,6 @@
                         <property name="left-attach">0</property>
                         <property name="top-attach">0</property>
                         <property name="width">2</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkButton" id="save_preset_btn">
-                        <property name="label" translatable="yes">Save Preset</property>
-                        <property name="visible">True</property>
-                        <property name="can-focus">True</property>
-                        <property name="receives-default">True</property>
-                      </object>
-                      <packing>
-                        <property name="left-attach">0</property>
-                        <property name="top-attach">9</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkButton" id="recall_preset_btn">
-                        <property name="label" translatable="yes">Recall Preset</property>
-                        <property name="visible">True</property>
-                        <property name="can-focus">True</property>
-                        <property name="receives-default">True</property>
-                      </object>
-                      <packing>
-                        <property name="left-attach">1</property>
-                        <property name="top-attach">9</property>
                       </packing>
                     </child>
                     <child>
@@ -271,7 +229,7 @@
                       </object>
                       <packing>
                         <property name="left-attach">0</property>
-                        <property name="top-attach">3</property>
+                        <property name="top-attach">2</property>
                       </packing>
                     </child>
                     <child>
@@ -283,7 +241,7 @@
                       </object>
                       <packing>
                         <property name="left-attach">0</property>
-                        <property name="top-attach">2</property>
+                        <property name="top-attach">3</property>
                       </packing>
                     </child>
                     <child>
@@ -349,7 +307,7 @@
                       </object>
                       <packing>
                         <property name="left-attach">1</property>
-                        <property name="top-attach">2</property>
+                        <property name="top-attach">3</property>
                       </packing>
                     </child>
                     <child>
@@ -383,7 +341,59 @@
                       </object>
                       <packing>
                         <property name="left-attach">1</property>
-                        <property name="top-attach">3</property>
+                        <property name="top-attach">2</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="visible">True</property>
+                        <property name="can-focus">False</property>
+                        <property name="spacing">5</property>
+                        <child>
+                          <object class="GtkButton" id="save_settings_btn">
+                            <property name="label" translatable="yes">Save</property>
+                            <property name="visible">True</property>
+                            <property name="can-focus">True</property>
+                            <property name="receives-default">True</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="recall_settings_btn">
+                            <property name="label" translatable="yes">Recall</property>
+                            <property name="visible">True</property>
+                            <property name="can-focus">True</property>
+                            <property name="receives-default">True</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="upload_settings_btn">
+                            <property name="label" translatable="yes">Upload</property>
+                            <property name="visible">True</property>
+                            <property name="can-focus">True</property>
+                            <property name="receives-default">True</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="pack-type">end</property>
+                            <property name="position">2</property>
+                          </packing>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="left-attach">0</property>
+                        <property name="top-attach">9</property>
+                        <property name="width">2</property>
                       </packing>
                     </child>
                   </object>
@@ -449,6 +459,9 @@
                                 <property name="spacing">20</property>
                                 <property name="homogeneous">True</property>
                                 <child>
+                                  <placeholder/>
+                                </child>
+                                <child>
                                   <object class="GtkButton" id="start_btn">
                                     <property name="label" translatable="yes">Start</property>
                                     <property name="visible">True</property>
@@ -458,20 +471,6 @@
                                   <packing>
                                     <property name="expand">False</property>
                                     <property name="fill">True</property>
-                                    <property name="position">0</property>
-                                  </packing>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="stop_btn">
-                                    <property name="label" translatable="yes">Cancel</property>
-                                    <property name="visible">True</property>
-                                    <property name="can-focus">True</property>
-                                    <property name="receives-default">True</property>
-                                  </object>
-                                  <packing>
-                                    <property name="expand">False</property>
-                                    <property name="fill">True</property>
-                                    <property name="pack-type">end</property>
                                     <property name="position">1</property>
                                   </packing>
                                 </child>
@@ -523,7 +522,7 @@
                                 <property name="visible">True</property>
                                 <property name="can-focus">False</property>
                                 <property name="halign">end</property>
-                                <property name="label" translatable="yes">Duration (min):</property>
+                                <property name="label" translatable="yes">Duration (sec):</property>
                               </object>
                               <packing>
                                 <property name="left-attach">0</property>
@@ -584,16 +583,6 @@
                               </packing>
                             </child>
                             <child>
-                              <object class="GtkComboBox" id="capture_source_cbox">
-                                <property name="visible">True</property>
-                                <property name="can-focus">False</property>
-                              </object>
-                              <packing>
-                                <property name="left-attach">1</property>
-                                <property name="top-attach">1</property>
-                              </packing>
-                            </child>
-                            <child>
                               <object class="GtkSpinButton" id="capture_rate_sb">
                                 <property name="visible">True</property>
                                 <property name="can-focus">True</property>
@@ -607,6 +596,16 @@
                               <packing>
                                 <property name="left-attach">1</property>
                                 <property name="top-attach">4</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkComboBoxText" id="capture_source_cbox">
+                                <property name="visible">True</property>
+                                <property name="can-focus">False</property>
+                              </object>
+                              <packing>
+                                <property name="left-attach">1</property>
+                                <property name="top-attach">1</property>
                               </packing>
                             </child>
                           </object>
@@ -1865,7 +1864,7 @@
             <property name="visible">True</property>
             <property name="can-focus">False</property>
             <property name="halign">end</property>
-            <property name="label" translatable="yes">Prediction Fidelity:</property>
+            <property name="label" translatable="yes">Confidence Threshold:</property>
           </object>
           <packing>
             <property name="left-attach">0</property>
