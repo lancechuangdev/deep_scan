@@ -944,7 +944,7 @@
   <object class="GtkWindow" id="draw_window">
     <property name="can-focus">False</property>
     <property name="window-position">center</property>
-    <property name="default-width">1028</property>
+    <property name="default-width">800</property>
     <property name="default-height">680</property>
     <child>
       <!-- n-columns=2 n-rows=2 -->
@@ -1290,7 +1290,8 @@
   </object>
   <object class="GtkWindow" id="preprocess_window">
     <property name="can-focus">False</property>
-    <property name="default-width">1028</property>
+    <property name="window-position">center</property>
+    <property name="default-width">800</property>
     <property name="default-height">680</property>
     <child>
       <!-- n-columns=2 n-rows=2 -->
@@ -1705,6 +1706,7 @@
   </object>
   <object class="GtkWindow" id="train_model_window">
     <property name="can-focus">False</property>
+    <property name="window-position">center</property>
     <property name="default-width">680</property>
     <property name="default-height">680</property>
     <child>

@@ -146,6 +146,11 @@ void DrawWindow::on_window_shown()
     {
         std::filesystem::path path(m_imageLabelingQueue[m_imageLabelingIndex]);
         std::string file_name = path.filename().string();
+        m_imageNameLbl->set_tooltip_text(Glib::ustring(file_name));
+        if (file_name.length() > 10)
+        {
+            file_name = file_name.substr(0, 10) + "...";
+        }
         m_imageNameLbl->set_text(Glib::ustring(file_name));
     }
     if (m_imagePagingLbl)
@@ -347,6 +352,11 @@ void DrawWindow::onPreviousImageClicked()
     {
         std::filesystem::path path(m_imageLabelingQueue[m_imageLabelingIndex]);
         std::string file_name = path.filename().string();
+        m_imageNameLbl->set_tooltip_text(Glib::ustring(file_name));
+        if (file_name.length() > 10)
+        {
+            file_name = file_name.substr(0, 10) + "...";
+        }
         m_imageNameLbl->set_text(Glib::ustring(file_name));
     }
     if (m_imagePagingLbl)
@@ -368,6 +378,11 @@ void DrawWindow::onNextImageClicked()
     {
         std::filesystem::path path(m_imageLabelingQueue[m_imageLabelingIndex]);
         std::string file_name = path.filename().string();
+        m_imageNameLbl->set_tooltip_text(Glib::ustring(file_name));
+        if (file_name.length() > 10)
+        {
+            file_name = file_name.substr(0, 10) + "...";
+        }
         m_imageNameLbl->set_text(Glib::ustring(file_name));
     }
     if (m_imagePagingLbl)
