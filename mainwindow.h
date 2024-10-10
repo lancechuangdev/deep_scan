@@ -2,12 +2,6 @@
 #define DEEP_SCAN_MAINWINDOW_H
 
 #include <gtkmm.h>
-#include "MvCameraControl.h"
-#include "camcols.h"
-#include "framequeue.h"
-#include "drawwindow.h"
-#include "preprocesswindow.h"
-#include "trainmodelwindow.h"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -15,13 +9,22 @@
 #include <filesystem>
 #include <cstdio>
 #include <fstream>
+#include <string>
 #include <inttypes.h>  // For PRId64
 #include <cstdint>     // For uintptr_t
+#include "MvCameraControl.h"
+#include "camcols.h"
+#include "framequeue.h"
+#include "drawwindow.h"
+#include "preprocesswindow.h"
+#include "trainmodelwindow.h"
+#include "fileutils.h"
+#include "logger.h"
 
 class MainWindow : public Gtk::Window
 {
 public:
-    MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder);
+    MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder, std::shared_ptr<Logger> logger);
     virtual ~MainWindow();
 
 protected:
@@ -88,6 +91,7 @@ private:
     std::vector<void*> getAllDeviceHandles();
     void startCapture(void *deviceHandle, double captureIntervalMs, std::string captureDestFolder);
     void stopCapture(void *deviceHandle);
+    std::shared_ptr<Logger> m_logger;
 };
 
 #endif // DEEP_SCAN_MAINWINDOW_H

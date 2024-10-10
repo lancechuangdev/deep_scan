@@ -2,11 +2,14 @@
 
 const std::string MainWindow::SettingsFilePath = std::string(std::getenv("HOME")) + "/.config/deep-scan/settings.ini";
 
-MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder)
+MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder, std::shared_ptr<Logger> logger)
     : Gtk::Window(obj),
       m_builder(refBuilder),
-      m_frameQueue(20)
+      m_frameQueue(20),
+      m_logger(logger)
 {
+    m_logger->log("MainWindow initialized.");
+
     // Set the window title
     Gtk::Window *root;
     m_builder->get_widget("root", root);
@@ -263,6 +266,7 @@ void MainWindow::onDiscoverClicked()
         if (nRet != MV_OK)
         {
             std::cout << "MV_CC_EnumDevices fail! Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_EnumDevices: " + std::to_string(nRet), Logger::ERROR);
             break;
         }
 
@@ -270,7 +274,6 @@ void MainWindow::onDiscoverClicked()
         {
             for (unsigned int i = 0; i < m_camList.nDeviceNum; i++)
             {
-                std::cout << "device: " << i << std::endl;
                 MV_CC_DEVICE_INFO *pDeviceInfo = m_camList.pDeviceInfo[i];
                 if (NULL == pDeviceInfo)
                 {
@@ -297,6 +300,7 @@ void MainWindow::onDiscoverClicked()
         else
         {
             std::cout << "No device found." << std::endl;
+            m_logger->log("No device found.");
             break;
         }
     } while (false);
@@ -308,6 +312,7 @@ void MainWindow::onViewSettingsClicked()
     if (nIndex < 0)
     {
         std::cout << "No camera was selected." << std::endl;
+        m_logger->log("No camera was selected.");
         return;
     }
 
@@ -317,6 +322,7 @@ void MainWindow::onViewSettingsClicked()
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_CreateHandle: " + std::to_string(nRet), Logger::ERROR);
         return;
     }
 
@@ -325,6 +331,7 @@ void MainWindow::onViewSettingsClicked()
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
         return;
     }
 
@@ -335,6 +342,7 @@ void MainWindow::onViewSettingsClicked()
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_CloseDevice: " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Destroy handle
@@ -342,6 +350,7 @@ void MainWindow::onViewSettingsClicked()
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_DestroyHandle: " + std::to_string(nRet), Logger::ERROR);
     }
 }
 
@@ -370,6 +379,7 @@ void MainWindow::populateDeviceSettings(void *deviceHandle)
     else
     {
         std::cout << "Failed to get exposure time. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetFloatValue(ExposureTime): " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Resulting Frame Rate
@@ -387,6 +397,7 @@ void MainWindow::populateDeviceSettings(void *deviceHandle)
     else
     {
         std::cout << "Failed to get frame rate. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetFloatValue(ResultingFrameRate): " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Width
@@ -399,6 +410,7 @@ void MainWindow::populateDeviceSettings(void *deviceHandle)
     else
     {
         std::cout << "Failed to get width. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetIntValue(Width): " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Height
@@ -411,6 +423,7 @@ void MainWindow::populateDeviceSettings(void *deviceHandle)
     else
     {
         std::cout << "Failed to get height. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetIntValue(Height): " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Offset X
@@ -423,6 +436,7 @@ void MainWindow::populateDeviceSettings(void *deviceHandle)
     else
     {
         std::cout << "Failed to get offsetX. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetIntValue(OffsetX): " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Offset Y
@@ -435,6 +449,7 @@ void MainWindow::populateDeviceSettings(void *deviceHandle)
     else
     {
         std::cout << "Failed to get offsetY. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetIntValue(OffsetY): " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Gain
@@ -452,6 +467,7 @@ void MainWindow::populateDeviceSettings(void *deviceHandle)
     else
     {
         std::cout << "Failed to get gain. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetFloatValue(Gain): " + std::to_string(nRet), Logger::ERROR);
     }
 }
 
@@ -509,6 +525,7 @@ void MainWindow::onSavePresetClicked()
     else
     {
         std::cerr << "Unable to open settings file: " << SettingsFilePath << std::endl;
+        m_logger->log("Unable to open settings file: " + SettingsFilePath, Logger::ERROR);
     }
 
     std::string content = buffer.str();
@@ -583,6 +600,7 @@ void MainWindow::onSavePresetClicked()
     else
     {
         std::cerr << "Unable to open settings file for writing." << std::endl;
+        m_logger->log("Unable to open settings file for writing: " + SettingsFilePath, Logger::ERROR);
     }
 }
 
@@ -680,6 +698,7 @@ void MainWindow::onUploadSettingsClicked()
     if (deviceHandle == nullptr)
     {
         std::cout << "getDeviceHandleBySerialNumber fail! deviceHandle is nullptr" << std::endl;
+        m_logger->log("Error on getDeviceHandleBySerialNumber, deviceHandle is nullptr.", Logger::ERROR);
         return;
     }
 
@@ -688,6 +707,7 @@ void MainWindow::onUploadSettingsClicked()
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
         return;
     }
 
@@ -699,6 +719,7 @@ void MainWindow::onUploadSettingsClicked()
         if (MV_OK != nRet)
         {
             std::cerr << "Error to set exposure time. Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_SetFloatValue(ExposureTime): " + std::to_string(nRet), Logger::ERROR);
         }
     }
 
@@ -709,6 +730,7 @@ void MainWindow::onUploadSettingsClicked()
         if (MV_OK != nRet)
         {
             std::cerr << "Error to set width. Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_SetIntValue(Width): " + std::to_string(nRet), Logger::ERROR);
         }
     }
 
@@ -719,6 +741,7 @@ void MainWindow::onUploadSettingsClicked()
         if (MV_OK != nRet)
         {
             std::cerr << "Error to set height. Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_SetIntValue(Height): " + std::to_string(nRet), Logger::ERROR);
         }
     }
 
@@ -729,6 +752,7 @@ void MainWindow::onUploadSettingsClicked()
         if (MV_OK != nRet)
         {
             std::cerr << "Error to set offsetX. Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_SetIntValue(OffsetX): " + std::to_string(nRet), Logger::ERROR);
         }
     }
 
@@ -739,6 +763,7 @@ void MainWindow::onUploadSettingsClicked()
         if (MV_OK != nRet)
         {
             std::cerr << "Error to set offsetY. Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_SetIntValue(OffsetY): " + std::to_string(nRet), Logger::ERROR);
         }
     }
 
@@ -749,6 +774,7 @@ void MainWindow::onUploadSettingsClicked()
         if (MV_OK != nRet)
         {
             std::cerr << "Error to set gain. Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_SetFloatValue(Gain): " + std::to_string(nRet), Logger::ERROR);
         }
     }
 
@@ -757,6 +783,7 @@ void MainWindow::onUploadSettingsClicked()
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_CloseDevice: " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Destroy handle
@@ -764,6 +791,7 @@ void MainWindow::onUploadSettingsClicked()
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_DestroyHandle: " + std::to_string(nRet), Logger::ERROR);
     }
 }
 
@@ -783,6 +811,7 @@ void *MainWindow::getDeviceHandleBySerialNumber(std::string sn)
                 if (nRet != MV_OK)
                 {
                     std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
+                    m_logger->log("Error on MV_CC_CreateHandle: " + std::to_string(nRet), Logger::ERROR);
                     return nullptr;
                 }
                 return deviceHandle;
@@ -807,6 +836,7 @@ std::vector<void*> MainWindow::getAllDeviceHandles()
             if (nRet != MV_OK)
             {
                 std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
+                m_logger->log("Error on MV_CC_CreateHandle: " + std::to_string(nRet), Logger::ERROR);
                 continue;  // Skip this device if handle creation failed
             }
 
@@ -826,6 +856,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
         return;
     }
 
@@ -837,11 +868,13 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
         if (nRet != MV_OK)
         {
             std::cout << "Set Packet Size fail. Error code: " << nRet << std::endl;
+            m_logger->log("Error on MV_CC_SetIntValue(GevSCPSPacketSize): " + std::to_string(nRet), Logger::ERROR);
         }
     }
     else
     {
         std::cout << "Get Packet Size fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_GetOptimalPacketSize: " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Enable trigger mode
@@ -849,6 +882,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
     if (MV_OK != nRet)
     {
         std::cout << "MV_CC_SetTriggerMode fail! Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_SetTriggerMode: " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Set trigger source
@@ -856,6 +890,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
     if (MV_OK != nRet)
     {
         std::cout << "MV_CC_SetTriggerSource fail! Error code:" << nRet << std::endl;
+        m_logger->log("Error on MV_CC_SetEnumValue(TriggerSource): " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Register image callback
@@ -879,6 +914,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_RegisterImageCallBackEx fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_RegisterImageCallBackEx: " + std::to_string(nRet), Logger::ERROR);
         return;
     }
 
@@ -946,6 +982,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
                 if (MV_OK != nRet)
                 {
                     std::cout << "Failed to capture frames via TriggerSoftware. Error code: " << nRet << std::endl;
+                    m_logger->log("Error on MV_CC_SetCommandValue(TriggerSoftware): " + std::to_string(nRet), Logger::ERROR);
                     std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Prevent CPU overuse
                 }
             }
@@ -964,6 +1001,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_StartGrabbing fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_StartGrabbing: " + std::to_string(nRet), Logger::ERROR);
     }
 }
 
@@ -996,6 +1034,7 @@ void MainWindow::onStartCaptureClicked()
             if (deviceHandle == nullptr)
             {
                 std::cout << "getDeviceHandleBySerialNumber fail! deviceHandle is nullptr" << std::endl;
+                m_logger->log("Error on getDeviceHandleBySerialNumber: deviceHandle is nullptr.", Logger::ERROR);
             }
             m_deviceHandles.push_back(deviceHandle);
         }
@@ -1024,7 +1063,8 @@ void MainWindow::onStartCaptureClicked()
         }
         catch (const std::filesystem::filesystem_error &e)
         {
-            std::cerr << "Error creating directory: " << e.what() << std::endl;
+            std::cerr << "Error creating the directory: " << e.what() << std::endl;
+            m_logger->log("Error creating the directory:" + std::string(e.what()), Logger::ERROR);
         }
     }
 
@@ -1040,6 +1080,7 @@ void MainWindow::onStartCaptureClicked()
     {
         auto currentTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         std::cout << "Begin capture for device: " << deviceHandle << " at " << currentTimeInMs << std::endl;
+        m_logger->log("Begin capture");
 
         // Launch startCapture asynchronously for each device
         std::async(std::launch::async, &MainWindow::startCapture, this, deviceHandle, captureIntervalMs, captureDestFolder);
@@ -1071,6 +1112,7 @@ void MainWindow::stopCapture(void *deviceHandle)
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_StopGrabbing fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_StopGrabbing", Logger::ERROR);
     }
 
     // Close the device
@@ -1078,6 +1120,7 @@ void MainWindow::stopCapture(void *deviceHandle)
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_CloseDevice: " + std::to_string(nRet), Logger::ERROR);
     }
 
     // Destory the device handle
@@ -1085,6 +1128,7 @@ void MainWindow::stopCapture(void *deviceHandle)
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_DestroyHandle: " + std::to_string(nRet), Logger::ERROR);
     }
 }
 
