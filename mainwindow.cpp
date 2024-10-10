@@ -15,14 +15,15 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     // Get the button by ID and connect the signal handler.
     m_builder->get_widget("discover_btn", m_discoverBtn);
     m_builder->get_widget("view_settings_btn", m_viewSettingsBtn);
-    m_builder->get_widget("start_btn", m_startBtn);
+    m_builder->get_widget("start_capture_btn", m_startCaptureBtn);
+    m_builder->get_widget("stop_capture_btn", m_stopCaptureBtn);
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
     m_builder->get_widget("open_patch_btn", m_openPatchDialogBtn);
     m_builder->get_widget("open_training_btn", m_openTrainingDialogBtn);
 
     // Disable buttons initially
     m_viewSettingsBtn -> set_sensitive(false);
-    m_startBtn->set_sensitive(false);
+    m_startCaptureBtn->set_sensitive(false);
     m_openDrawingDialogBtn->set_sensitive(false);
     m_openPatchDialogBtn->set_sensitive(false);
     m_openTrainingDialogBtn->set_sensitive(false);
@@ -35,9 +36,13 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     {
         m_viewSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onViewSettingsClicked));
     }
-    if (m_startBtn)
+    if (m_startCaptureBtn)
     {
-        m_startBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStartClicked));
+        m_startCaptureBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStartCaptureClicked));
+    }
+    if (m_stopCaptureBtn)
+    {
+        m_stopCaptureBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStopCaptureClicked));
     }
     if (m_openDrawingDialogBtn)
     {
@@ -104,7 +109,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
                                                    {
             auto selectedCamera = m_cameraComboBox->get_active_text();
             auto folder = m_capturePickerFcb->get_filename();
-            m_startBtn->set_sensitive(!folder.empty() && !selectedCamera.empty()); });
+            m_startCaptureBtn->set_sensitive(!folder.empty() && !selectedCamera.empty()); });
     }
 
     m_builder->get_widget("capture_picker_fcb", m_capturePickerFcb);
@@ -114,11 +119,9 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
                                                                {
             auto selectedCamera = m_cameraComboBox->get_active_text();
             auto folder = m_capturePickerFcb->get_filename();
-            m_startBtn->set_sensitive(!folder.empty() && !selectedCamera.empty()); });
+            m_startCaptureBtn->set_sensitive(!folder.empty() && !selectedCamera.empty()); });
     }
-    m_builder->get_widget("capture_duration_sb", m_captureDurationSb);
     m_builder->get_widget("capture_rate_sb", m_captureRateSb);
-    m_builder->get_widget("capture_pb", m_capturePb);
 
     // Image Labelling
     m_builder->get_widget("labeling_picker_fcb", m_labelingPickerFcb);
@@ -814,11 +817,10 @@ std::vector<void*> MainWindow::getAllDeviceHandles()
     return deviceHandles;  // Return all device handles
 }
 
-void MainWindow::captureImages(void *deviceHandle, int captureDurationSec, double captureIntervalMs, std::string captureDestFolder)
+void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std::string captureDestFolder)
 {
-    // Create a shared pointer to manage the lifetime
-    auto running = std::make_shared<bool>(true);
-    
+    m_isCapturing = true;
+
     // Connect to the device
     int nRet = MV_CC_OpenDevice(deviceHandle);
     if (nRet != MV_OK)
@@ -881,7 +883,7 @@ void MainWindow::captureImages(void *deviceHandle, int captureDurationSec, doubl
     }
 
     // Process images in a separate thread
-    auto processFrameAsync = [this, deviceHandle, captureDestFolder, running]()
+    auto processFrameAsync = [this, deviceHandle, captureDestFolder]()
     {
         // Ensure that the folder path ends with a slash
         std::string filePath = captureDestFolder;
@@ -892,7 +894,21 @@ void MainWindow::captureImages(void *deviceHandle, int captureDurationSec, doubl
 
         FrameData frameData(nullptr, nullptr); // Initialize FrameData with null pointers
 
-        while (*running)
+        while (m_isCapturing)
+        {
+            if (m_frameQueue.dequeue(frameData))
+            {
+                // Save image async
+                std::async(std::launch::async, saveImageAsync, frameData, deviceHandle, filePath);
+            }
+            else
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Prevent CPU overuse
+            }
+        }
+
+        // Flush frame queue
+        while (!m_frameQueue.isEmpty())
         {
             if (m_frameQueue.dequeue(frameData))
             {
@@ -913,18 +929,17 @@ void MainWindow::captureImages(void *deviceHandle, int captureDurationSec, doubl
     processingThread.detach();
 
     // Capture images in a separate thread
-    auto captureFrameAsync = [this, deviceHandle, captureIntervalMs, running]()
+    auto captureFrameAsync = [this, deviceHandle, captureIntervalMs]()
     {
         uint64_t lastCaptureTimestamp = 0;
 
-        while (*running)
+        while (m_isCapturing)
         {
             auto currentTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
             double elapsed = currentTimeInMs - lastCaptureTimestamp;
 
             if (elapsed >= captureIntervalMs)
             {
-                std::cout << "Start to capture frames at time: " << currentTimeInMs << std::endl;
                 lastCaptureTimestamp = currentTimeInMs;
 
                 int nRet = MV_CC_SetCommandValue(deviceHandle, "TriggerSoftware");
@@ -944,54 +959,6 @@ void MainWindow::captureImages(void *deviceHandle, int captureDurationSec, doubl
     // Detach the thread to let it run in the background and won't be able to join later
     capturingThread.detach();
 
-    // Start the capture timer
-    sigc::connection timeoutConnection;
-    uint64_t captureElapsedTime = 0;
-    timeoutConnection = Glib::signal_timeout().connect(
-        [this, deviceHandle, captureDurationSec, captureElapsedTime, timeoutConnection, running]() mutable -> bool
-        {
-            captureElapsedTime += 100; // Increase the elapsed time by 100 ms
-            auto duration = captureDurationSec * 1000; // Calculate the capture duration in milliseconds
-            if (captureElapsedTime >= duration)
-            {
-                *running = false;
-
-                // Clear the frame queue
-                this->m_frameQueue.clear();
-
-                // Time's up, stop the capturing
-                int nRet = MV_CC_StopGrabbing(deviceHandle);
-                if (nRet != MV_OK)
-                {
-                    std::cout << "MV_CC_StopGrabbing fail. Error code: " << nRet << std::endl;
-                }
-
-                // Close the device
-                nRet = MV_CC_CloseDevice(deviceHandle);
-                if (nRet != MV_OK)
-                {
-                    std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
-                }
-
-                // Destory the device handle
-                nRet = MV_CC_DestroyHandle(deviceHandle);
-                if (nRet != MV_OK)
-                {
-                    std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
-                }
-
-                // Disconnect the timeout handler
-                timeoutConnection.disconnect();
-
-                // Return false to stop the timeout
-                return false;
-            }
-
-            return true; // Continue the timeout
-        },
-        100 // Update every 100 milliseconds
-    );
-
     // Start grab images
     nRet = MV_CC_StartGrabbing(deviceHandle);
     if (nRet != MV_OK)
@@ -1000,10 +967,17 @@ void MainWindow::captureImages(void *deviceHandle, int captureDurationSec, doubl
     }
 }
 
-void MainWindow::onStartClicked()
+void MainWindow::onStartCaptureClicked()
 {
-    std::vector<void*> deviceHandles;
-    int captureDurationSec = 0;
+    // Reset device handles
+    if (!m_deviceHandles.empty())
+    {
+        m_deviceHandles.clear();
+    }
+
+    // Disable start capture btn
+    m_startCaptureBtn->set_sensitive(false);
+
     double captureIntervalMs = 0.0;
     std::string captureDestFolder;
     uint64_t captureElapsedTime = 0;
@@ -1013,7 +987,7 @@ void MainWindow::onStartClicked()
         auto selectedCaptureDevice = m_cameraComboBox->get_active_text();
         if (selectedCaptureDevice == "All Cameras")
         {
-            deviceHandles = getAllDeviceHandles();
+            m_deviceHandles = getAllDeviceHandles();
         }
         else
         {
@@ -1023,7 +997,7 @@ void MainWindow::onStartClicked()
             {
                 std::cout << "getDeviceHandleBySerialNumber fail! deviceHandle is nullptr" << std::endl;
             }
-            deviceHandles.push_back(deviceHandle);
+            m_deviceHandles.push_back(deviceHandle);
         }
     }
 
@@ -1053,11 +1027,6 @@ void MainWindow::onStartClicked()
             std::cerr << "Error creating directory: " << e.what() << std::endl;
         }
     }
-    
-    if (m_captureDurationSb)
-    {
-        captureDurationSec = m_captureDurationSb->get_value();
-    }
 
     if (m_captureRateSb)
     {
@@ -1066,37 +1035,56 @@ void MainWindow::onStartClicked()
         captureIntervalMs = 1000.0 / static_cast<double>(captureRate);
     }
 
-    // Initialize progress bar
-    m_capturePb->set_fraction(0.0); // Start at 0%
-
-    // Start the timeout for the progress bar update using a lambda function
-    Glib::signal_timeout().connect(
-        [this, captureDurationSec, captureElapsedTime]() mutable -> bool
-        {
-            captureElapsedTime += 100; // Increase the elapsed time by 100 ms
-            auto duration = captureDurationSec * 1000; // Calculate the capture duration in milliseconds
-            double fraction = static_cast<double>(captureElapsedTime) / duration;
-            m_capturePb->set_fraction(fraction);
-
-            if (captureElapsedTime >= duration)
-            {
-                m_capturePb->set_fraction(1.0);
-                return false; // Return false to stop the timeout
-            }
-
-            return true; // Continue the timeout
-        },
-        100 // Update every 100 milliseconds
-    );
-
     // Start capturing
-    for (void *deviceHandle : deviceHandles)
+    for (void *deviceHandle : m_deviceHandles)
     {
         auto currentTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        std::cout << "Begin captureImages for device: " << deviceHandle << " at " << currentTimeInMs << std::endl;
+        std::cout << "Begin capture for device: " << deviceHandle << " at " << currentTimeInMs << std::endl;
 
-        // Launch captureImages asynchronously for each device
-        std::async(std::launch::async, &MainWindow::captureImages, this, deviceHandle, captureDurationSec, captureIntervalMs, captureDestFolder);
+        // Launch startCapture asynchronously for each device
+        std::async(std::launch::async, &MainWindow::startCapture, this, deviceHandle, captureIntervalMs, captureDestFolder);
+    }
+}
+
+void MainWindow::onStopCaptureClicked()
+{
+    for (void *deviceHandle : m_deviceHandles)
+    {
+        // Launch stopCapture asynchronously for each device
+        std::async(std::launch::async, &MainWindow::stopCapture, this, deviceHandle);
+    }
+
+    if (!m_deviceHandles.empty())
+    {
+        m_deviceHandles.clear();
+    }
+
+    // Enable start capture btn
+    m_startCaptureBtn->set_sensitive(true);
+}
+
+void MainWindow::stopCapture(void *deviceHandle)
+{
+    m_isCapturing = false;
+
+    int nRet = MV_CC_StopGrabbing(deviceHandle);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_StopGrabbing fail. Error code: " << nRet << std::endl;
+    }
+
+    // Close the device
+    nRet = MV_CC_CloseDevice(deviceHandle);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
+    }
+
+    // Destory the device handle
+    nRet = MV_CC_DestroyHandle(deviceHandle);
+    if (nRet != MV_OK)
+    {
+        std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
     }
 }
 

@@ -29,7 +29,8 @@ protected:
     Gtk::TreeView *m_camTreeView;
     Gtk::Button *m_discoverBtn;
     Gtk::Button *m_viewSettingsBtn;
-    Gtk::Button *m_startBtn;
+    Gtk::Button *m_startCaptureBtn;
+    Gtk::Button *m_stopCaptureBtn;
     Gtk::Button *m_openDrawingDialogBtn;
     Gtk::Button *m_openPatchDialogBtn;
     Gtk::Button *m_openTrainingDialogBtn;
@@ -53,14 +54,13 @@ protected:
     Gtk::FileChooserButton *m_modelImagesPickerFcb;
     Gtk::FileChooserButton *m_modelMasksPickerFcb;
     Gtk::FileChooserButton *m_saveModelPickerFcb;
-    Gtk::SpinButton *m_captureDurationSb;
     Gtk::SpinButton *m_captureRateSb;
-    Gtk::ProgressBar *m_capturePb;
     
     // Signal handlers:
     void onDiscoverClicked();
     void onViewSettingsClicked();
-    void onStartClicked();
+    void onStartCaptureClicked();
+    void onStopCaptureClicked();
     void onTreeviewSelectionChanged();
     void onOpenDrawingClicked();
     void onOpenPreprocessingClicked();
@@ -79,12 +79,15 @@ private:
     std::string m_preprocessImagePath;
     std::string m_trainModelImagesPath;
     std::string m_trainModelMasksPath;
+    std::atomic<bool> m_isCapturing;
+    std::vector<void*> m_deviceHandles;
+    static const std::string SettingsFilePath;
     void populateDeviceSettings(void *deviceHandle);
     void clearDeviceSettings();
     void *getDeviceHandleBySerialNumber(std::string sn);
     std::vector<void*> getAllDeviceHandles();
-    void captureImages(void *deviceHandle, int captureDurationSec, double captureIntervalMs, std::string captureDestFolder);
-    static const std::string SettingsFilePath;
+    void startCapture(void *deviceHandle, double captureIntervalMs, std::string captureDestFolder);
+    void stopCapture(void *deviceHandle);
 };
 
 #endif // DEEP_SCAN_MAINWINDOW_H
