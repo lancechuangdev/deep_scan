@@ -16,6 +16,9 @@ public:
     // Dequeue data from the queue
     bool dequeue(FrameData& outFrame);
 
+    // Clear the queue
+    void clear();
+
     // Check if the queue is empty
     bool isEmpty() const;
 

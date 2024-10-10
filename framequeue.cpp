@@ -35,6 +35,20 @@ bool FrameQueue::dequeue(FrameData& frameData) {
     return true;
 }
 
+// Clear operation
+void FrameQueue::clear() {
+    std::lock_guard<std::mutex> lock(mtx);  // Lock for thread safety
+
+    // Clear the buffer by resizing it to 0 and then back to capacity
+    buffer.clear();  
+    buffer.resize(capacity);
+
+    // Reset head, tail, and size
+    head = 0;
+    tail = 0;
+    size = 0;
+}
+
 // Check if the queue is empty
 bool FrameQueue::isEmpty() const {
     std::lock_guard<std::mutex> lock(mtx);  // Lock for thread safety
