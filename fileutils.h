@@ -7,6 +7,7 @@
 #include <gtkmm.h>
 #include <sys/stat.h> // For mkdir()
 #include <regex>
+#include <giomm.h>
 
 class FileUtils
 {
@@ -21,6 +22,7 @@ public:
     static std::string generateRandomString(size_t length);
     static std::string replaceExtension(const std::string &filename, const std::string &newExtension);
     static bool directoryExists(const std::string& parent, const std::string& sub);
+    static bool createFile(const std::string& path);
     static bool createSubdirectory(const std::string& parent, const std::string& sub);
     static bool checkImagesDimensions(std::vector<std::string> images, int width, int height);
     static bool checkImagesHaveMasks(std::vector<std::string> images, std::vector<std::string> masks);

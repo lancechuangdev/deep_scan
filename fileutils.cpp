@@ -167,6 +167,46 @@ bool FileUtils::directoryExists(const std::string &parent, const std::string &su
     return Glib::file_test(path, Glib::FILE_TEST_IS_DIR);
 }
 
+bool FileUtils::createFile(const std::string& path)
+{
+    try
+    {
+        // Create the file object
+        Glib::RefPtr<Gio::File> file = Gio::File::create_for_path(path);
+        
+        // Check if the file already exists
+        if (file->query_exists())
+        {
+            std::cout << "File already exists: " << path << std::endl;
+            return true;
+        }
+
+        // Get the parent directory of the file
+        Glib::RefPtr<Gio::File> parentDir = file->get_parent();
+        
+        // Check if the parent directory exists
+        if (!parentDir->query_exists())
+        {
+            // Create the directory and any missing parent directories
+            parentDir->make_directory_with_parents();
+        }
+
+        // Now create the file
+        Glib::RefPtr<Gio::FileOutputStream> outputStream = file->create_file();
+        if (outputStream)
+        {
+            std::cout << "File created: " << path << std::endl;
+            return true;
+        }
+    }
+    catch (const Glib::Error& ex)
+    {
+        std::cerr << "Error creating file: " << ex.what() << std::endl;
+    }
+
+    return false;
+}
+
 bool FileUtils::createSubdirectory(const std::string &parent, const std::string &sub)
 {
     // Check if the directory already exists
