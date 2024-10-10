@@ -83,7 +83,7 @@ void TrainModelWindow::setModelPath(const std::string &imagesPath, const std::st
     m_imagesPath = imagesPath;
     m_masksPath = masksPath;
     m_selectedImages = FileUtils::getImageFiles(imagesPath);
-    m_selectedMasks = FileUtils::getImageFiles(masksPath);
+    m_selectedMasks = FileUtils::getImageFiles(masksPath, true);
 }
 
 void TrainModelWindow::on_window_shown()
@@ -134,12 +134,10 @@ void TrainModelWindow::on_window_shown()
 
 bool TrainModelWindow::validateInputDataset()
 {
-    // return m_selectedImages.size() == m_selectedMasks.size() &&
-    // FileUtils::checkImagesDimensions(m_selectedImages, m_patchSize, m_patchSize) &&
-    // FileUtils::checkImagesDimensions(m_selectedMasks, m_patchSize, m_patchSize) &&
-    // FileUtils::checkImagesHaveMasks(m_selectedImages, m_selectedMasks);
-
-    return true;
+    return m_selectedImages.size() == m_selectedMasks.size() &&
+           FileUtils::checkImagesDimensions(m_selectedImages, m_patchSize, m_patchSize) &&
+           FileUtils::checkImagesDimensions(m_selectedMasks, m_patchSize, m_patchSize) &&
+           FileUtils::checkImagesHaveMasks(m_selectedImages, m_selectedMasks);
 }
 
 void TrainModelWindow::onStartTrainingClicked()
