@@ -92,6 +92,10 @@ private:
 
     bool m_ctrlPressed = false; // Flag to check if Ctrl key is pressed
     void saveMaskAsBinary(const std::string &filename);
+
+    static const int AmberRed = 255;
+    static const int AmberGreen = 191;
+    static const int AmberBlue = 0;
 };
 
 #endif

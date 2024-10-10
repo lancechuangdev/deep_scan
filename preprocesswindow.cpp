@@ -278,6 +278,9 @@ void PreprocessWindow::LoadMaskBufferFromFile(const std::string &filename)
                 }
                 else if (pixel[0] > 0 && pixel[1] > 0 && pixel[2] > 0)
                 {
+                    pixel[0] = AmberRed;
+                    pixel[1] = AmberGreen;
+                    pixel[2] = AmberBlue;
                     pixel[3] = m_brushAlpha * 255;
                 }
             }

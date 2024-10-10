@@ -85,6 +85,10 @@ private:
     bool m_ctrlPressed = false; // Flag to check if Ctrl key is pressed
     bool m_showPatchCursor = false; // True when the brush cursor should be visible
     bool m_isPatchingMode = false;
+
+    static const int AmberRed = 255;
+    static const int AmberGreen = 191;
+    static const int AmberBlue = 0;
 };
 
 #endif

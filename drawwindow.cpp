@@ -320,6 +320,9 @@ void DrawWindow::LoadMaskBufferFromFile(const std::string &filename)
                 }
                 else if (pixel[0] > 0 && pixel[1] > 0 && pixel[2] > 0)
                 {
+                    pixel[0] = AmberRed;
+                    pixel[1] = AmberGreen;
+                    pixel[2] = AmberBlue;
                     pixel[3] = m_brushAlpha * 255;
                 }
             }
@@ -626,7 +629,7 @@ void DrawWindow::drawBrushCursor(const Cairo::RefPtr<Cairo::Context> &cr)
 {
     if (m_showBrushCursor)
     {
-        cr->set_source_rgba(255, 255, 255, m_brushAlpha);
+        cr->set_source_rgba(AmberRed, AmberGreen, AmberBlue, m_brushAlpha);
         cr->arc(m_brushX, m_brushY, m_brushRadius, 0, 2 * M_PI);
         cr->fill();
     }
@@ -669,9 +672,12 @@ void DrawWindow::drawOnMask()
                     else
                     {
                         // Set alpha and color for brush mode
-                        pixel[0] = 255;                       // Red
-                        pixel[1] = 255;                       // Green
-                        pixel[2] = 255;                       // Blue
+                        // pixel[0] = 255;                       // Red
+                        // pixel[1] = 255;                       // Green
+                        // pixel[2] = 255;                       // Blue
+                        pixel[0] = AmberRed;
+                        pixel[1] = AmberGreen;
+                        pixel[2] = AmberBlue;
                         pixel[3] = (int)(m_brushAlpha * 255); // Set alpha
                     }
                 }
