@@ -608,7 +608,7 @@ void MainWindow::onRecallPresetClicked()
             }
             else if (line.find('[') != std::string::npos)
             {
-                break; // New section means we passed the current device's settings
+                isCurrentDevice = false; // New section means we passed the current device's settings
             }
 
             if (isCurrentDevice)

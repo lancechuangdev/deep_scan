@@ -50,6 +50,7 @@ private:
     double m_predFidelity = 0.0;
     std::vector<std::string> m_selectedImages;
     std::vector<std::string> m_selectedMasks;
+    static const std::string SettingsFilePath;
     bool validateInputDataset();
 };
 

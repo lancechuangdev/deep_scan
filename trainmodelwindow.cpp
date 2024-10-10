@@ -1,5 +1,7 @@
 #include "trainmodelwindow.h"
 
+const std::string TrainModelWindow::SettingsFilePath = std::string(std::getenv("HOME")) + "/.config/deep-scan/settings.ini";
+
 TrainModelWindow::TrainModelWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade)
     : Gtk::Window(cobject), m_refGlade(refGlade)
 {
@@ -90,6 +92,65 @@ void TrainModelWindow::on_window_shown()
 {
     this->set_title(Glib::ustring("Train Model"));
 
+    // Read training settings from file
+    std::ifstream settingsFile(SettingsFilePath);
+    std::string line;
+    bool isTrainingSettings = false;
+    if (settingsFile.is_open())
+    {
+        while (std::getline(settingsFile, line))
+        {
+            if (line == "[Training]")
+            {
+                isTrainingSettings = true;
+            }
+            else if (line.find('[') != std::string::npos)
+            {
+                isTrainingSettings = false; // New section means we passed the training settings
+            }
+
+            if (isTrainingSettings)
+            {
+                std::istringstream lineStream(line);
+                std::string key;
+
+                if (std::getline(lineStream, key, '='))
+                {
+                    std::string value;
+                    if (key == "patchSize" && std::getline(lineStream, value))
+                    {
+                        if (m_patchSizeSb)
+                        {
+                            m_patchSizeSb->set_value(std::stod(value));
+                        }
+                    }
+                    else if (key == "batchSize" && std::getline(lineStream, value))
+                    {
+                        if (m_batchSizeSb)
+                        {
+                            m_batchSizeSb->set_value(std::stod(value));
+                        }
+                    }
+                    else if (key == "pyEnv" && std::getline(lineStream, value))
+                    {
+                        if (m_pyEnvEntry)
+                        {
+                            m_pyEnvEntry->set_text(Glib::ustring(value));
+                        }
+                    }
+                    else if (key == "epochs" && std::getline(lineStream, value))
+                    {
+                        if (m_epochsSb)
+                        {
+                            m_epochsSb->set_value(std::stod(value));
+                        }
+                    }
+                }
+            }
+        }
+        settingsFile.close();
+    }
+
     if (m_imagesCountLbl)
     {
         m_imagesCountLbl->set_text(Glib::ustring::compose("Loaded %1 Images in:", m_selectedImages.size()));
@@ -172,11 +233,80 @@ void TrainModelWindow::onStartTrainingClicked()
         return;
     }
 
+    // Save training settings for future use
+    if (FileUtils::createFile(SettingsFilePath))
+    {
+        // Read the existing content of the file
+        std::ifstream settingsFile(SettingsFilePath);
+        std::stringstream buffer;
+        if (settingsFile.is_open())
+        {
+            buffer << settingsFile.rdbuf();
+            settingsFile.close();
+        }
+        else
+        {
+            std::cerr << "Unable to open settings file: " << SettingsFilePath << std::endl;
+        }
+        std::string content = buffer.str();
+
+        // Construct the new settings
+        std::stringstream sectionContent;
+        std::string sectionHeader = "[Training]";
+        sectionContent << sectionHeader << std::endl;
+        sectionContent << "patchSize=" << m_patchSize << std::endl;
+        sectionContent << "batchSize=" << m_batchSize << std::endl;
+        sectionContent << "pyEnv=" << m_pyEnv << std::endl;
+        sectionContent << "epochs=" << m_epochs << std::endl;
+        sectionContent << std::endl; // Add a blank line after the new section
+
+        // Override if the training section already exists
+        size_t sectionPos = content.find(sectionHeader);
+        bool sectionExists = (sectionPos != std::string::npos);
+
+        if (sectionExists)
+        {
+            // If the section exists, replace its contents
+            size_t nextSectionPos = content.find('[', sectionPos + 1); // Find the next section's starting position
+
+            // Replace the old section with the new one
+            if (nextSectionPos == std::string::npos)
+            {
+                // The section is the last one, so replace to the end of the file
+                content.replace(sectionPos, std::string::npos, sectionContent.str());
+            }
+            else
+            {
+                // Replace up to the next section
+                content.replace(sectionPos, nextSectionPos - sectionPos, sectionContent.str());
+            }
+        }
+        else
+        {
+            // If the section doesn't exist, append the new section at the end
+            content += sectionContent.str();
+        }
+
+        // Write the updated content back to the file (overwrite)
+        std::ofstream outFile(SettingsFilePath);
+        if (outFile.is_open())
+        {
+            outFile << content;
+            outFile.close();
+        }
+        else
+        {
+            std::cerr << "Unable to open settings file for writing." << std::endl;
+        }
+    }
+
     // Get current time and format it as YYYYMMDD_HHMMSS
     char timestamp[20];
     std::time_t now = std::time(nullptr);
     std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", std::localtime(&now));
     std::string timestampStr(timestamp);
+
+    // Create a directory to save the model
     std::string modelFolder = "model_" + timestampStr;
     std::string userDocs = Glib::get_user_special_dir(Glib::USER_DIRECTORY_DOCUMENTS);
     bool isModelDirCreated = FileUtils::createSubdirectory(userDocs, modelFolder);
