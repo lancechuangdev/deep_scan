@@ -84,6 +84,7 @@ private:
     void *getDeviceHandleBySerialNumber(std::string sn);
     std::vector<void*> getAllDeviceHandles();
     void captureImages(void *deviceHandle, int captureDurationSec, double captureIntervalMs, std::string captureDestFolder);
+    static const std::string SettingsFilePath;
 };
 
 #endif // DEEP_SCAN_MAINWINDOW_H

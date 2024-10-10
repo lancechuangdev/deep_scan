@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 
+const std::string MainWindow::SettingsFilePath = std::string(std::getenv("HOME")) + "/.config/deep-scan/settings.ini";
+
 MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &refBuilder)
     : Gtk::Window(obj),
       m_builder(refBuilder),
@@ -488,13 +490,22 @@ void MainWindow::clearDeviceSettings()
 
 void MainWindow::onSavePresetClicked()
 {
+    if (!FileUtils::createFile(SettingsFilePath))
+    {
+        return;
+    }
+
     // Step 1: Read the existing content of the file
-    std::ifstream settingsFile("settings.ini");
+    std::ifstream settingsFile(SettingsFilePath);
     std::stringstream buffer;
     if (settingsFile.is_open())
     {
         buffer << settingsFile.rdbuf();
         settingsFile.close();
+    }
+    else
+    {
+        std::cerr << "Unable to open settings file: " << SettingsFilePath << std::endl;
     }
 
     std::string content = buffer.str();
@@ -560,8 +571,8 @@ void MainWindow::onSavePresetClicked()
     }
 
     // Step 5: Write the updated content back to the file (overwrite)
-    std::ofstream outFile("settings.ini");
-    if (outFile.is_open())
+    std::ofstream outFile(SettingsFilePath);
+    if (outFile.is_open()) 
     {
         outFile << content;
         outFile.close();
@@ -574,7 +585,7 @@ void MainWindow::onSavePresetClicked()
 
 void MainWindow::onRecallPresetClicked()
 {
-    std::ifstream settingsFile("settings.ini");
+    std::ifstream settingsFile(SettingsFilePath);
     std::string line;
     bool isCurrentDevice = false;
     std::string sn;
