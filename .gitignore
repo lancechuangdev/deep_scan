@@ -1,3 +1,5 @@
 /builddir/
 /debian/.debhelper/*
 /debian/deep-scan/*
+/debian/changelog
+/debian/files
