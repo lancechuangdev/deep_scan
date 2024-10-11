@@ -21,6 +21,7 @@ protected:
     Gtk::Label *m_imagesPathLbl;
     Gtk::Label *m_masksPathLbl;
     Gtk::Label *m_errorMsgLbl;
+    Gtk::ComboBoxText *m_modelComboBox;
     Gtk::SpinButton *m_patchSizeSb;
     Gtk::SpinButton *m_batchSizeSb;
     Gtk::SpinButton *m_epochsSb;
@@ -43,7 +44,8 @@ private:
     std::string m_modelPath;
     std::string m_testImagesPath;
     std::string m_testMasksPath;
-    std::string m_pyEnv; // /home/liang/anaconda3/envs/colab/bin/python
+    std::string m_selectedModel;
+    std::string m_pyEnv;
     int m_patchSize;
     int m_batchSize;
     int m_epochs;

@@ -121,7 +121,7 @@ def main():
                 patch_idx += 1
 
         # Normalize true and predicted masks to [0, 255] range for saving
-        stitched_true_mask = (stitched_true_mask * 255).astype(np.uint8)
+        #stitched_true_mask = (stitched_true_mask * 255).astype(np.uint8)
         stitched_pred_mask = (stitched_pred_mask * 255).astype(np.uint8)
 
         # Convert grayscale masks to RGB by stacking them (height, width -> height, width, 3)

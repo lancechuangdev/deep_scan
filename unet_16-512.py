@@ -31,7 +31,7 @@ def augment_image(image, mask):
 
     return image, mask
 
-def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8, normalize=True, augment=True):
+def load_images_and_masks(image_dir, mask_dir, target_size=(512, 512), batch_size=8, normalize=True, augment=True):
     # Load images
     image_dataset = image_dataset_from_directory(
         image_dir,
@@ -59,15 +59,16 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
         dataset = dataset.map(augment_image)
 
     # Normalize the images and masks to [0, 1]
+    # Masks have a pixel value of 0 for the background and 255 for the foreground, normalize the values by dividing by 255.0
     if normalize:
-        dataset = dataset.map(lambda img, mask: (tf.image.convert_image_dtype(img, tf.float32),
-                                                 tf.image.convert_image_dtype(mask, tf.float32)))
+        dataset = dataset.map(lambda img, mask: (tf.image.convert_image_dtype(img, tf.float32), 
+                                                 tf.image.convert_image_dtype(mask, tf.float32) / 255.0))
 
     return dataset
 
 # U-Net model definition
-def unet_model(input_size=(256, 256, 3)):
-    # Input layerE
+def unet_model(input_size=(512, 512, 3)):
+    # Input layer
     inputs = Input(input_size)
 
     # Encoding path
@@ -87,29 +88,37 @@ def unet_model(input_size=(256, 256, 3)):
     c4 = Conv2D(128, (3, 3), activation='relu', padding='same')(c4)
     p4 = MaxPooling2D(pool_size=(2, 2))(c4)
 
-    # Bottleneck
     c5 = Conv2D(256, (3, 3), activation='relu', padding='same')(p4)
     c5 = Conv2D(256, (3, 3), activation='relu', padding='same')(c5)
+    p5 = MaxPooling2D(pool_size=(2, 2))(c5)
+
+    # Bottleneck
+    c6 = Conv2D(512, (3, 3), activation='relu', padding='same')(p5)
+    c6 = Conv2D(512, (3, 3), activation='relu', padding='same')(c6)
 
     # Decoding path
-    u6 = concatenate([UpSampling2D((2, 2))(c5), c4])
-    c6 = Conv2D(128, (3, 3), activation='relu', padding='same')(u6)
-    c6 = Conv2D(128, (3, 3), activation='relu', padding='same')(c6)
+    u7 = concatenate([UpSampling2D((2, 2))(c6), c5])
+    c7 = Conv2D(256, (3, 3), activation='relu', padding='same')(u7)
+    c7 = Conv2D(256, (3, 3), activation='relu', padding='same')(c7)
 
-    u7 = concatenate([UpSampling2D((2, 2))(c6), c3])
-    c7 = Conv2D(64, (3, 3), activation='relu', padding='same')(u7)
-    c7 = Conv2D(64, (3, 3), activation='relu', padding='same')(c7)
+    u8 = concatenate([UpSampling2D((2, 2))(c7), c4])
+    c8 = Conv2D(128, (3, 3), activation='relu', padding='same')(u8)
+    c8 = Conv2D(128, (3, 3), activation='relu', padding='same')(c8)
 
-    u8 = concatenate([UpSampling2D((2, 2))(c7), c2])
-    c8 = Conv2D(32, (3, 3), activation='relu', padding='same')(u8)
-    c8 = Conv2D(32, (3, 3), activation='relu', padding='same')(c8)
+    u9 = concatenate([UpSampling2D((2, 2))(c8), c3])
+    c9 = Conv2D(64, (3, 3), activation='relu', padding='same')(u9)
+    c9 = Conv2D(64, (3, 3), activation='relu', padding='same')(c9)
 
-    u9 = concatenate([UpSampling2D((2, 2))(c8), c1])
-    c9 = Conv2D(16, (3, 3), activation='relu', padding='same')(u9)
-    c9 = Conv2D(16, (3, 3), activation='relu', padding='same')(c9)
+    u10 = concatenate([UpSampling2D((2, 2))(c9), c2])
+    c10 = Conv2D(32, (3, 3), activation='relu', padding='same')(u10)
+    c10 = Conv2D(32, (3, 3), activation='relu', padding='same')(c10)
+
+    u11 = concatenate([UpSampling2D((2, 2))(c10), c1])
+    c11 = Conv2D(16, (3, 3), activation='relu', padding='same')(u11)
+    c11 = Conv2D(16, (3, 3), activation='relu', padding='same')(c11)
 
     # Output layer
-    outputs = Conv2D(1, (1, 1), activation='sigmoid')(c9)
+    outputs = Conv2D(1, (1, 1), activation='sigmoid')(c11)
 
     model = Model(inputs=[inputs], outputs=[outputs])
     return model

@@ -13,6 +13,12 @@ TrainModelWindow::TrainModelWindow(BaseObjectType *cobject, const Glib::RefPtr<G
     m_refGlade->get_widget("train_model_masks_path_lbl", m_masksPathLbl);
     m_refGlade->get_widget("training_error_msg_lbl", m_errorMsgLbl);
 
+    m_refGlade->get_widget("model_name_combobox", m_modelComboBox);
+    if (m_modelComboBox)
+    {
+        m_modelComboBox->signal_changed().connect([this]() { m_selectedModel = m_modelComboBox->get_active_text(); });
+    }
+
     m_refGlade->get_widget("model_patch_size_sb", m_patchSizeSb);
     if (m_patchSizeSb)
     {
@@ -117,7 +123,14 @@ void TrainModelWindow::on_window_shown()
                 if (std::getline(lineStream, key, '='))
                 {
                     std::string value;
-                    if (key == "patchSize" && std::getline(lineStream, value))
+                    if (key == "model" && std::getline(lineStream, value))
+                    {
+                        if (m_modelComboBox)
+                        {
+                            m_modelComboBox->set_active_text(Glib::ustring(value));
+                        }
+                    }
+                    else if (key == "patchSize" && std::getline(lineStream, value))
                     {
                         if (m_patchSizeSb)
                         {
@@ -166,6 +179,10 @@ void TrainModelWindow::on_window_shown()
     if (m_masksPathLbl)
     {
         m_masksPathLbl->set_text(Glib::ustring(m_masksPath));
+    }
+    if (m_modelComboBox)
+    {
+        m_selectedModel = m_modelComboBox->get_active_text();
     }
     if (m_patchSizeSb)
     {
@@ -218,7 +235,7 @@ void TrainModelWindow::onStartTrainingClicked()
     m_errorMsgLbl->set_text(Glib::ustring(""));
 
     // Validate training settings
-    if (m_pyEnv.empty() || m_patchSize <= 0 || m_batchSize <= 0 || m_epochs <= 0)
+    if (m_selectedModel.empty() || m_pyEnv.empty() || m_patchSize <= 0 || m_batchSize <= 0 || m_epochs <= 0)
     {
         if (m_errorMsgLbl)
         {
@@ -254,6 +271,7 @@ void TrainModelWindow::onStartTrainingClicked()
         std::stringstream sectionContent;
         std::string sectionHeader = "[Training]";
         sectionContent << sectionHeader << std::endl;
+        sectionContent << "model=" << m_selectedModel << std::endl;    
         sectionContent << "patchSize=" << m_patchSize << std::endl;
         sectionContent << "batchSize=" << m_batchSize << std::endl;
         sectionContent << "pyEnv=" << m_pyEnv << std::endl;
@@ -391,7 +409,14 @@ void TrainModelWindow::onStartTrainingClicked()
                 std::ofstream tempUnetPyFile(tempPyPath);
                 if (tempUnetPyFile.is_open())
                 {
-                    tempUnetPyFile << unet_py;
+                    if (m_selectedModel == "unet_16-256")
+                    {
+                        tempUnetPyFile << unet_16to256;
+                    }
+                    else if (m_selectedModel == "unet_16-512")
+                    {
+                        tempUnetPyFile << unet_16to512;
+                    }
                     tempUnetPyFile.close();
                 }
                 else
@@ -432,11 +457,13 @@ void TrainModelWindow::onStartTrainingClicked()
                 // Open log file for writing
                 std::string logFilePath = Glib::build_filename(m_modelPath, "ds.log");
                 std::ofstream logFile(logFilePath, std::ios::out | std::ios::app); // Append mode
-                if (logFile.is_open()) {
+                if (logFile.is_open()) 
+                {
                     std::string cmdForLogging = cmd;
-                    // Find and replace tempPyPath with "ds.py"
+                    // Find and replace tempPyPath with "ds.py" to hide the actual model py script
                     size_t pos = cmdForLogging.find(tempPyPath);
-                    if (pos != std::string::npos) {
+                    if (pos != std::string::npos) 
+                    {
                         cmdForLogging.replace(pos, tempPyPath.length(), "ds.py");
                     }
                     logFile << cmdForLogging << std::endl;
@@ -449,13 +476,15 @@ void TrainModelWindow::onStartTrainingClicked()
                 while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
                 {
                     std::cout << buffer.data(); // Print each line to the console
-                    if (logFile.is_open()) {
+                    if (logFile.is_open()) 
+                    {
                         logFile << buffer.data(); // Write each line to the log file
                     }
                 }
 
                 // Close the log file
-                if (logFile.is_open()) {
+                if (logFile.is_open())
+                {
                     logFile.close();
                 }
 
