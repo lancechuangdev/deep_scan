@@ -8,8 +8,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
       m_frameQueue(20),
       m_logger(logger)
 {
-    m_logger->log("MainWindow initialized.");
-
     // Set the window title
     Gtk::Window *root;
     m_builder->get_widget("root", root);
@@ -1160,7 +1158,7 @@ void MainWindow::onOpenPreprocessingClicked()
 void MainWindow::onOpenTrainingClicked()
 {
     auto gladeFile = FileUtils::getGladeFilePath();
-    TrainModelWindow *TrainModelWindow = TrainModelWindow::create(gladeFile);
+    TrainModelWindow *TrainModelWindow = TrainModelWindow::create(gladeFile, m_logger);
 
     if (TrainModelWindow)
     {

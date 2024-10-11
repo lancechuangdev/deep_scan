@@ -2,8 +2,8 @@
 
 const std::string TrainModelWindow::SettingsFilePath = std::string(std::getenv("HOME")) + "/.config/deep-scan/settings.ini";
 
-TrainModelWindow::TrainModelWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade)
-    : Gtk::Window(cobject), m_refGlade(refGlade)
+TrainModelWindow::TrainModelWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade, std::shared_ptr<Logger> logger)
+    : Gtk::Window(cobject), m_refGlade(refGlade), m_logger(logger)
 {
     signal_show().connect(sigc::mem_fun(*this, &TrainModelWindow::on_window_shown));
 
@@ -74,14 +74,14 @@ TrainModelWindow::TrainModelWindow(BaseObjectType *cobject, const Glib::RefPtr<G
     }
 }
 
-TrainModelWindow *TrainModelWindow::create(const std::string &gladeFilePath)
+TrainModelWindow *TrainModelWindow::create(const std::string &gladeFilePath, std::shared_ptr<Logger> logger)
 {
     // Load the Glade file
     auto refBuilder = Gtk::Builder::create_from_file(gladeFilePath);
 
     // Get the window object from the Glade file
     TrainModelWindow *window = nullptr;
-    refBuilder->get_widget_derived("train_model_window", window);
+    refBuilder->get_widget_derived("train_model_window", window, logger);
 
     return window;
 }
@@ -264,6 +264,7 @@ void TrainModelWindow::onStartTrainingClicked()
         else
         {
             std::cerr << "Unable to open settings file: " << SettingsFilePath << std::endl;
+            m_logger->log("Unable to open settings file: " + SettingsFilePath, Logger::ERROR);
         }
         std::string content = buffer.str();
 
@@ -315,6 +316,7 @@ void TrainModelWindow::onStartTrainingClicked()
         else
         {
             std::cerr << "Unable to open settings file for writing." << std::endl;
+            m_logger->log("Unable to open settings file for writing: " + SettingsFilePath, Logger::ERROR);
         }
     }
 
@@ -395,6 +397,7 @@ void TrainModelWindow::onStartTrainingClicked()
             if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
             {
                 std::cerr << "Failed to create tmp directory.";
+                m_logger->log("Unable to create tmp directory: /tmp/deep_scan", Logger::ERROR);
 
                 if (m_startTrainingBtn)
                 {
@@ -422,6 +425,7 @@ void TrainModelWindow::onStartTrainingClicked()
                 else
                 {
                     std::cerr << "Failed to open temp_unet.py for writing" << std::endl;
+                    m_logger->log("Unable to open temp_unet.py for writing", Logger::ERROR);
 
                     if (m_startTrainingBtn)
                     {
@@ -450,7 +454,8 @@ void TrainModelWindow::onStartTrainingClicked()
                 FILE *pipe = popen(cmd.c_str(), "r");
                 if (!pipe)
                 {
-                    std::cerr << "Failed to run command\n";
+                    std::cerr << "Failed to open a pipe and run command\n";
+                    m_logger->log("Error to open a pipe and run command: " + cmd, Logger::ERROR);
                     return;
                 }
 
@@ -493,6 +498,7 @@ void TrainModelWindow::onStartTrainingClicked()
                 if (returnCode != 0)
                 {
                     std::cerr << "Command failed with return code " << returnCode << std::endl;
+                    m_logger->log("Error to close the pipe: " + std::to_string(returnCode), Logger::ERROR);
                 }
 
                 // Optionally handle the result here or update the UI (make sure UI updates happen on the main thread)
@@ -526,8 +532,10 @@ void TrainModelWindow::onViewModelClicked()
     }
 
     std::string command = "xdg-open " + m_modelPath;
-    if (std::system(command.c_str()) != 0) {
+    if (std::system(command.c_str()) != 0)
+    {
         std::cerr << "Failed to open directory." << std::endl;
+        m_logger->log("Error to open the directory via command: " + command, Logger::ERROR);
     }
 }
 
@@ -579,6 +587,7 @@ void TrainModelWindow::onTestModelClicked()
         else
         {
             std::cerr << "Failed to open temp_unet.py for writing" << std::endl;
+            m_logger->log("Unable to open temp_unet.py for writing", Logger::ERROR);
 
             if (m_testModelBtn)
             {
@@ -606,16 +615,19 @@ void TrainModelWindow::onTestModelClicked()
         if (!pipe)
         {
             std::cerr << "Failed to run command\n";
+            m_logger->log("Unable to run command: " + cmd, Logger::ERROR);
         }
 
         // Open log file for writing
         std::string logFilePath = Glib::build_filename(m_modelPath, "ds.log");
         std::ofstream logFile(logFilePath, std::ios::out | std::ios::app); // Append mode
-        if (logFile.is_open()) {
+        if (logFile.is_open())
+        {
             std::string cmdForLogging = cmd;
-            // Find and replace tempPyPath with "ds_test.py"
+            // Find and replace tempPyPath with "ds_test.py" to hide the actual model py test script
             size_t pos = cmdForLogging.find(tempPyPath);
-            if (pos != std::string::npos) {
+            if (pos != std::string::npos) 
+            {
                 cmdForLogging.replace(pos, tempPyPath.length(), "ds_test.py");
             }
             logFile << cmdForLogging << std::endl;
@@ -643,6 +655,7 @@ void TrainModelWindow::onTestModelClicked()
         if (returnCode != 0)
         {
             std::cerr << "Command failed with return code " << returnCode << std::endl;
+            m_logger->log("Unable to close the pipe: " + std::to_string(returnCode), Logger::ERROR);
         }
 
         // Delete the tmp script after execution
@@ -672,7 +685,9 @@ void TrainModelWindow::onViewTestResultClicked()
     }
 
     std::string command = "xdg-open " + Glib::build_filename(m_modelPath, "test_result");
-    if (std::system(command.c_str()) != 0) {
+    if (std::system(command.c_str()) != 0) 
+    {
         std::cerr << "Failed to open directory." << std::endl;
+        m_logger->log("Error to open the directory via command: " + command, Logger::ERROR);
     }
 }

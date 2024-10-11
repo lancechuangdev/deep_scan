@@ -7,12 +7,13 @@
 #include <cstdio> // for std::remove
 #include "fileutils.h"
 #include "pyscript.h"
+#include "logger.h"
 
 class TrainModelWindow : public Gtk::Window
 {
 public:
-    TrainModelWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade);
-    static TrainModelWindow *create(const std::string &gladeFailePath);
+    TrainModelWindow(BaseObjectType *cobject, const Glib::RefPtr<Gtk::Builder> &refGlade, std::shared_ptr<Logger> logger);
+    static TrainModelWindow *create(const std::string &gladeFailePath, std::shared_ptr<Logger> logger);
     void setModelPath(const std::string &imagesPath, const std::string &masksPath);
 
 protected:
@@ -54,6 +55,7 @@ private:
     std::vector<std::string> m_selectedMasks;
     static const std::string SettingsFilePath;
     bool validateInputDataset();
+    std::shared_ptr<Logger> m_logger;
 };
 
 #endif
