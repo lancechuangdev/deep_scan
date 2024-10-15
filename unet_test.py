@@ -2,11 +2,9 @@ import os
 import argparse
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow import keras
-from keras.utils import image_dataset_from_directory
-from keras.models import load_model
+from tensorflow.keras.utils import image_dataset_from_directory
+from tensorflow.keras.models import load_model
 from PIL import Image
 
 def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8):

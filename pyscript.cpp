@@ -4,12 +4,11 @@ const std::string unet_16to256 = R"(
 import os
 import argparse
 import tensorflow as tf
-from tensorflow import keras
-from keras.utils import image_dataset_from_directory
-from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
-from keras.models import Model
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint
+from tensorflow.keras.utils import image_dataset_from_directory
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 def augment_image(image, mask):
@@ -192,12 +191,11 @@ const std::string unet_16to512 = R"(
 import os
 import argparse
 import tensorflow as tf
-from tensorflow import keras
-from keras.utils import image_dataset_from_directory
-from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
-from keras.models import Model
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint
+from tensorflow.keras.utils import image_dataset_from_directory
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 def augment_image(image, mask):
@@ -389,11 +387,9 @@ import os
 import argparse
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow import keras
-from keras.utils import image_dataset_from_directory
-from keras.models import load_model
+from tensorflow.keras.utils import image_dataset_from_directory
+from tensorflow.keras.models import load_model
 from PIL import Image
 
 def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8):

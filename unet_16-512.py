@@ -1,12 +1,11 @@
 import os
 import argparse
 import tensorflow as tf
-from tensorflow import keras
-from keras.utils import image_dataset_from_directory
-from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
-from keras.models import Model
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint
+from tensorflow.keras.utils import image_dataset_from_directory
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 def augment_image(image, mask):
