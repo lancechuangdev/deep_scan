@@ -137,6 +137,9 @@ def main():
         # Concatenate the image, true mask, and predicted mask horizontally
         combined_image = np.concatenate((stitched_image, black_space_rgb, stitched_true_mask_rgb, black_space_rgb, stitched_pred_mask_rgb), axis=1)
 
+        # Convert the combined image to uint8
+        combined_image = combined_image.astype(np.uint8)
+
         # Convert the combined image to a PIL image and save it
         combined_pil_image = Image.fromarray(combined_image)
         os.makedirs(os.path.join(model_dir, 'test_result'), exist_ok=True)
