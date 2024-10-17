@@ -89,6 +89,7 @@ private:
     void clearDeviceSettings();
     void *getDeviceHandleBySerialNumber(std::string sn);
     std::vector<void*> getAllDeviceHandles();
+    void preflight(void *deviceHandle);
     void startCapture(void *deviceHandle, double captureIntervalMs, std::string captureDestFolder);
     void stopCapture(void *deviceHandle);
     std::shared_ptr<Logger> m_logger;

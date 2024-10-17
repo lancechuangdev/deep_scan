@@ -845,10 +845,8 @@ std::vector<void*> MainWindow::getAllDeviceHandles()
     return deviceHandles;  // Return all device handles
 }
 
-void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std::string captureDestFolder)
+void MainWindow::preflight(void *deviceHandle)
 {
-    m_isCapturing = true;
-
     // Connect to the device
     int nRet = MV_CC_OpenDevice(deviceHandle);
     if (nRet != MV_OK)
@@ -857,8 +855,9 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
         m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
         return;
     }
+    m_logger->log("Connected to device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 
-    // Detect network optimal package size(It only works for the GigE camera)
+    // Detect network optimal packet size(It only works for the GigE camera)
     int nPacketSize = MV_CC_GetOptimalPacketSize(deviceHandle);
     if (nPacketSize > 0)
     {
@@ -874,6 +873,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
         std::cout << "Get Packet Size fail. Error code: " << nRet << std::endl;
         m_logger->log("Error on MV_CC_GetOptimalPacketSize: " + std::to_string(nRet), Logger::ERROR);
     }
+    m_logger->log("MV_CC_SetIntValue(GevSCPSPacketSize) for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 
     // Enable trigger mode
     nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerMode", 1);
@@ -882,6 +882,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
         std::cout << "MV_CC_SetTriggerMode fail! Error code: " << nRet << std::endl;
         m_logger->log("Error on MV_CC_SetTriggerMode: " + std::to_string(nRet), Logger::ERROR);
     }
+    m_logger->log("MV_CC_SetEnumValue(TriggerMode) for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 
     // Set trigger source
     nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
@@ -890,6 +891,58 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
         std::cout << "MV_CC_SetTriggerSource fail! Error code:" << nRet << std::endl;
         m_logger->log("Error on MV_CC_SetEnumValue(TriggerSource): " + std::to_string(nRet), Logger::ERROR);
     }
+    m_logger->log("MV_CC_SetEnumValue(TriggerSource) for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
+}
+
+void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std::string captureDestFolder)
+{
+    m_isCapturing = true;
+
+    // // Connect to the device
+    // int nRet = MV_CC_OpenDevice(deviceHandle);
+    // if (nRet != MV_OK)
+    // {
+    //     std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
+    //     m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
+    //     return;
+    // }
+    // m_logger->log("Connected to device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
+
+    // // Detect network optimal packet size(It only works for the GigE camera)
+    // int nPacketSize = MV_CC_GetOptimalPacketSize(deviceHandle);
+    // if (nPacketSize > 0)
+    // {
+    //     nRet = MV_CC_SetIntValue(deviceHandle, "GevSCPSPacketSize", nPacketSize);
+    //     if (nRet != MV_OK)
+    //     {
+    //         std::cout << "Set Packet Size fail. Error code: " << nRet << std::endl;
+    //         m_logger->log("Error on MV_CC_SetIntValue(GevSCPSPacketSize): " + std::to_string(nRet), Logger::ERROR);
+    //     }
+    // }
+    // else
+    // {
+    //     std::cout << "Get Packet Size fail. Error code: " << nRet << std::endl;
+    //     m_logger->log("Error on MV_CC_GetOptimalPacketSize: " + std::to_string(nRet), Logger::ERROR);
+    // }
+    // m_logger->log("MV_CC_GetOptimalPacketSize for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
+
+    // // Enable trigger mode
+    // nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerMode", 1);
+    // if (MV_OK != nRet)
+    // {
+    //     std::cout << "MV_CC_SetTriggerMode fail! Error code: " << nRet << std::endl;
+    //     m_logger->log("Error on MV_CC_SetTriggerMode: " + std::to_string(nRet), Logger::ERROR);
+    // }
+    // m_logger->log("MV_CC_SetEnumValue(TriggerMode) for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
+
+    // // Set trigger source
+    // nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
+    // if (MV_OK != nRet)
+    // {
+    //     std::cout << "MV_CC_SetTriggerSource fail! Error code:" << nRet << std::endl;
+    //     m_logger->log("Error on MV_CC_SetEnumValue(TriggerSource): " + std::to_string(nRet), Logger::ERROR);
+    // }
+    // m_logger->log("MV_CC_SetEnumValue(TriggerSource) for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 
     // Register image callback
     auto imageCaptureCallback = [](unsigned char *pData, MV_FRAME_OUT_INFO_EX *pFrameInfo, void *pUser)
@@ -908,13 +961,14 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
         pThis->m_frameQueue.enqueue(FrameData(pData, pFrameInfo));
     };
 
-    nRet = MV_CC_RegisterImageCallBackEx(deviceHandle, imageCaptureCallback, this);
+    int nRet = MV_CC_RegisterImageCallBackEx(deviceHandle, imageCaptureCallback, this);
     if (nRet != MV_OK)
     {
         std::cout << "MV_CC_RegisterImageCallBackEx fail. Error code: " << nRet << std::endl;
         m_logger->log("Error on MV_CC_RegisterImageCallBackEx: " + std::to_string(nRet), Logger::ERROR);
         return;
     }
+    m_logger->log("MV_CC_RegisterImageCallBackEx for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 
     // Process images in a separate thread
     auto processFrameAsync = [this, deviceHandle, captureDestFolder]()
@@ -958,6 +1012,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
 
     // Create and start the frame processing thread
     std::thread processingThread(processFrameAsync);
+    m_logger->log("Started frame processing thread for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 
     // Detach the thread to let it run in the background and won't be able to join later
     processingThread.detach();
@@ -990,6 +1045,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
 
     // Create and start the frame acquisition thread
     std::thread capturingThread(captureFrameAsync);
+    m_logger->log("Started frame capturing thread for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 
     // Detach the thread to let it run in the background and won't be able to join later
     capturingThread.detach();
@@ -1001,6 +1057,7 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
         std::cout << "MV_CC_StartGrabbing fail. Error code: " << nRet << std::endl;
         m_logger->log("Error on MV_CC_StartGrabbing: " + std::to_string(nRet), Logger::ERROR);
     }
+    m_logger->log("Started MV_CC_StartGrabbing for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
 }
 
 void MainWindow::onStartCaptureClicked()
@@ -1073,6 +1130,19 @@ void MainWindow::onStartCaptureClicked()
         captureIntervalMs = 1000.0 / static_cast<double>(captureRate);
     }
 
+    // Preflight
+    for (void *deviceHandle : m_deviceHandles)
+    {
+        auto currentTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        std::cout << "Preflight request to device: " << deviceHandle << " at " << currentTimeInMs << std::endl;
+        m_logger->log("Preflight request to device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
+
+        // Launch startCapture asynchronously for each device
+        std::async(std::launch::async, &MainWindow::preflight, this, deviceHandle);
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
     // Start capturing
     for (void *deviceHandle : m_deviceHandles)
     {
@@ -1089,6 +1159,7 @@ void MainWindow::onStopCaptureClicked()
 {
     for (void *deviceHandle : m_deviceHandles)
     {
+        m_logger->log("Stop capture for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
         // Launch stopCapture asynchronously for each device
         std::async(std::launch::async, &MainWindow::stopCapture, this, deviceHandle);
     }
