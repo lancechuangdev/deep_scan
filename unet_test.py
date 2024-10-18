@@ -14,6 +14,7 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
         labels=None,
         image_size=target_size,
         batch_size=batch_size,
+        color_mode='grayscale',
         shuffle=False
     )
 

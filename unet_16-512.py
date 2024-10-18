@@ -37,6 +37,7 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(512, 512), batch_siz
         labels=None,
         image_size=target_size,
         batch_size=batch_size,
+        color_mode='grayscale',
         shuffle=False
     )
 
@@ -50,6 +51,14 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(512, 512), batch_siz
         shuffle=False
     )
 
+    # Convert mask pixel values greater than 0 to 1 before pairing
+    def process_mask(mask):
+        mask = tf.where(mask > 0, 1.0, 0.0)
+        return mask
+
+    # Apply mask conversion before pairing
+    mask_dataset = mask_dataset.map(lambda mask: process_mask(mask))
+
     # Pair images with their masks
     dataset = tf.data.Dataset.zip((image_dataset, mask_dataset))
 
@@ -58,15 +67,14 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(512, 512), batch_siz
         dataset = dataset.map(augment_image)
 
     # Normalize the images and masks to [0, 1]
-    # Masks have a pixel value of 0 for the background and 255 for the foreground, normalize the values by dividing by 255.0
     if normalize:
         dataset = dataset.map(lambda img, mask: (tf.image.convert_image_dtype(img, tf.float32), 
-                                                 tf.image.convert_image_dtype(mask, tf.float32) / 255.0))
+                                                 tf.image.convert_image_dtype(mask, tf.float32)))
 
     return dataset
 
 # U-Net model definition
-def unet_model(input_size=(512, 512, 3)):
+def unet_model(input_size):
     # Input layer
     inputs = Input(input_size)
 
@@ -159,10 +167,10 @@ def main():
     val_dataset = load_images_and_masks(val_images_path, val_masks_path, target_size=(patch_size, patch_size), batch_size=batch_size)
 
     # U-net model
-    model = unet_model(input_size=(patch_size, patch_size, 3))
+    model = unet_model(input_size=(patch_size, patch_size, 1))
 
     # Train the model
-    model.compile(optimizer=Adam(learning_rate=1e-4), loss='binary_crossentropy', metrics=[iou])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[iou]) # metrics=['accuracy', iou_metric]?
     checkpoint_callback = ModelCheckpoint(model_path, save_best_only=True)
     history = model.fit(train_dataset, epochs=epochs, validation_data=val_dataset, callbacks=[checkpoint_callback])
 
