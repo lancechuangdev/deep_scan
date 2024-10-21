@@ -31,6 +31,11 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
     # Pair images with their masks
     dataset = tf.data.Dataset.zip((image_dataset, mask_dataset))
 
+    # Normalize the images to [0, 1], required by the unet model.
+    # Dont normalize the masks, keep them in the range of [0, 255] to display it
+    dataset = dataset.map(lambda img, mask: (tf.image.convert_image_dtype(img, tf.float32) / 255.0,
+                                             tf.image.convert_image_dtype(mask, tf.float32)))
+
     return dataset
 
 # BCE w/ Intersection over Union (IoU)
@@ -120,7 +125,6 @@ def main():
                 patch_idx += 1
 
         # Normalize true and predicted masks to [0, 255] range for saving
-        #stitched_true_mask = (stitched_true_mask * 255).astype(np.uint8)
         stitched_pred_mask = (stitched_pred_mask * 255).astype(np.uint8)
 
         # Convert grayscale masks to RGB by stacking them (height, width -> height, width, 3)

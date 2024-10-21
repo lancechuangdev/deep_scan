@@ -51,14 +51,6 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
         shuffle=False
     )
 
-    # Convert mask pixel values greater than 0 to 1 before pairing
-    def process_mask(mask):
-        mask = tf.where(mask > 0, 1.0, 0.0)
-        return mask
-
-    # Apply mask conversion before pairing
-    mask_dataset = mask_dataset.map(lambda mask: process_mask(mask))
-
     # Pair images with their masks
     dataset = tf.data.Dataset.zip((image_dataset, mask_dataset))
 
@@ -66,10 +58,20 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
     if augment:
         dataset = dataset.map(augment_image)
 
+    for img_batch, mask_batch in dataset.take(1):
+        print("Before Normalization:")
+        print(f"Image min value: {tf.reduce_min(img_batch).numpy()}, max value: {tf.reduce_max(img_batch).numpy()}")
+        print(f"Mask min value: {tf.reduce_min(mask_batch).numpy()}, max value: {tf.reduce_max(mask_batch).numpy()}")
+
     # Normalize the images and masks to [0, 1]
     if normalize:
-        dataset = dataset.map(lambda img, mask: (tf.image.convert_image_dtype(img, tf.float32),
-                                                 tf.image.convert_image_dtype(mask, tf.float32)))
+        dataset = dataset.map(lambda img, mask: (tf.image.convert_image_dtype(img, tf.float32) / 255.0,
+                                                 tf.image.convert_image_dtype(mask, tf.float32) / 255.0))
+
+    for img_batch, mask_batch in dataset.take(1):
+        print("After Normalization:")
+        print(f"Image min value: {tf.reduce_min(img_batch).numpy()}, max value: {tf.reduce_max(img_batch).numpy()}")
+        print(f"Mask min value: {tf.reduce_min(mask_batch).numpy()}, max value: {tf.reduce_max(mask_batch).numpy()}")
 
     return dataset
 
