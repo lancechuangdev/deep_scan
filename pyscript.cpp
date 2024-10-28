@@ -467,6 +467,9 @@ def main():
     model_dir = os.path.dirname(model_path)
 
     for idx, (images, masks) in enumerate(test_dataset):
+        # Convert images to uint8 format by scaling them to [0, 255] for proper display
+        images_display = (images.numpy() * 255).astype(np.uint8)
+
         # Predict masks
         preds = loaded_model.predict(images)
         preds = (preds > threshold).astype(np.float32)
@@ -483,7 +486,7 @@ def main():
                     break
 
                 # Place the patches in their respective positions
-                patch_with_border = np.pad(images[patch_idx], ((border_thickness, border_thickness),
+                patch_with_border = np.pad(images_display[patch_idx], ((border_thickness, border_thickness),
                                                                (border_thickness, border_thickness),
                                                                (0, 0)), mode='constant', constant_values=128)
                 stitched_image[i:i + patch_with_border.shape[0], j:j + patch_with_border.shape[1]] = patch_with_border
@@ -503,7 +506,7 @@ def main():
                 # Move to the next patch
                 patch_idx += 1
 
-        # Normalize true and predicted masks to [0, 255] range for saving
+        # Normalize predicted masks to [0, 255] range for saving
         stitched_pred_mask = (stitched_pred_mask * 255).astype(np.uint8)
 
         # Convert grayscale masks to RGB by stacking them (height, width -> height, width, 3)

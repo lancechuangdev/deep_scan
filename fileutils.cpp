@@ -61,6 +61,9 @@ std::vector<std::string> FileUtils::getImageFiles(const std::string &folder_path
         }
     }
 
+    // Sort files alphabetically by filename
+    std::sort(files.begin(), files.end());
+
     return files;
 }
 
