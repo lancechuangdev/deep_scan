@@ -898,52 +898,6 @@ void MainWindow::startCapture(void *deviceHandle, double captureIntervalMs, std:
 {
     m_isCapturing = true;
 
-    // // Connect to the device
-    // int nRet = MV_CC_OpenDevice(deviceHandle);
-    // if (nRet != MV_OK)
-    // {
-    //     std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
-    //     m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
-    //     return;
-    // }
-    // m_logger->log("Connected to device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
-
-    // // Detect network optimal packet size(It only works for the GigE camera)
-    // int nPacketSize = MV_CC_GetOptimalPacketSize(deviceHandle);
-    // if (nPacketSize > 0)
-    // {
-    //     nRet = MV_CC_SetIntValue(deviceHandle, "GevSCPSPacketSize", nPacketSize);
-    //     if (nRet != MV_OK)
-    //     {
-    //         std::cout << "Set Packet Size fail. Error code: " << nRet << std::endl;
-    //         m_logger->log("Error on MV_CC_SetIntValue(GevSCPSPacketSize): " + std::to_string(nRet), Logger::ERROR);
-    //     }
-    // }
-    // else
-    // {
-    //     std::cout << "Get Packet Size fail. Error code: " << nRet << std::endl;
-    //     m_logger->log("Error on MV_CC_GetOptimalPacketSize: " + std::to_string(nRet), Logger::ERROR);
-    // }
-    // m_logger->log("MV_CC_GetOptimalPacketSize for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
-
-    // // Enable trigger mode
-    // nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerMode", 1);
-    // if (MV_OK != nRet)
-    // {
-    //     std::cout << "MV_CC_SetTriggerMode fail! Error code: " << nRet << std::endl;
-    //     m_logger->log("Error on MV_CC_SetTriggerMode: " + std::to_string(nRet), Logger::ERROR);
-    // }
-    // m_logger->log("MV_CC_SetEnumValue(TriggerMode) for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
-
-    // // Set trigger source
-    // nRet = MV_CC_SetEnumValue(deviceHandle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
-    // if (MV_OK != nRet)
-    // {
-    //     std::cout << "MV_CC_SetTriggerSource fail! Error code:" << nRet << std::endl;
-    //     m_logger->log("Error on MV_CC_SetEnumValue(TriggerSource): " + std::to_string(nRet), Logger::ERROR);
-    // }
-    // m_logger->log("MV_CC_SetEnumValue(TriggerSource) for device: " + std::to_string(reinterpret_cast<uintptr_t>(deviceHandle)));
-
     // Register image callback
     auto imageCaptureCallback = [](unsigned char *pData, MV_FRAME_OUT_INFO_EX *pFrameInfo, void *pUser)
     {

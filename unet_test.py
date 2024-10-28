@@ -3,13 +3,11 @@ import argparse
 import numpy as np
 import math
 import tensorflow as tf
-from tensorflow.keras.utils import image_dataset_from_directory
-from tensorflow.keras.models import load_model
 from PIL import Image
 
 def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8):
     # Load images
-    image_dataset = image_dataset_from_directory(
+    image_dataset = tf.keras.utils.image_dataset_from_directory(
         image_dir,
         labels=None,
         image_size=target_size,
@@ -19,7 +17,7 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
     )
 
     # Load masks
-    mask_dataset = image_dataset_from_directory(
+    mask_dataset = tf.keras.utils.image_dataset_from_directory(
         mask_dir,
         labels=None,
         image_size=target_size,
@@ -73,7 +71,7 @@ def main():
     custom_objects = {
         'iou': iou
     }
-    loaded_model = load_model(model_path, custom_objects=custom_objects)
+    loaded_model = tf.keras.models.load_model(model_path, custom_objects=custom_objects)
 
     patches_per_row = 4
     rows = math.ceil(batch_size / patches_per_row)

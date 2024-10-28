@@ -4,11 +4,6 @@ const std::string unet_16to256 = R"(
 import os
 import argparse
 import tensorflow as tf
-from tensorflow.keras.utils import image_dataset_from_directory
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 def augment_image(image, mask):
@@ -33,9 +28,9 @@ def augment_image(image, mask):
 
     return image, mask
 
-def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8, normalize=True, augment=True):
+def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8, normalize=True, augment=False):
     # Load images
-    image_dataset = image_dataset_from_directory(
+    image_dataset = tf.keras.utils.image_dataset_from_directory(
         image_dir,
         labels=None,
         image_size=target_size,
@@ -45,7 +40,7 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
     )
 
     # Load masks
-    mask_dataset = image_dataset_from_directory(
+    mask_dataset = tf.keras.utils.image_dataset_from_directory(
         mask_dir,
         labels=None,
         image_size=target_size,
@@ -80,51 +75,48 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
 
 # U-Net model definition
 def unet_model(input_size):
-    # Input layerE
-    inputs = Input(input_size)
+    inputs = tf.keras.layers.Input(input_size)
 
-    # Encoding path
-    c1 = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs)
-    c1 = Conv2D(16, (3, 3), activation='relu', padding='same')(c1)
-    p1 = MaxPooling2D((2, 2))(c1)
+    # Contraction path
+    filters = [16, 32, 64, 128, 256]
+    dropouts = [0.1, 0.1, 0.2, 0.2, 0.3]
+    pool_size = (2, 2)
 
-    c2 = Conv2D(32, (3, 3), activation='relu', padding='same')(p1)
-    c2 = Conv2D(32, (3, 3), activation='relu', padding='same')(c2)
-    p2 = MaxPooling2D((2, 2))(c2)
+    skip_connections = []  # To store the connections for the expansive path
 
-    c3 = Conv2D(64, (3, 3), activation='relu', padding='same')(p2)
-    c3 = Conv2D(64, (3, 3), activation='relu', padding='same')(c3)
-    p3 = MaxPooling2D(pool_size=(2, 2))(c3)
+    x = inputs  # Initial input to the network
 
-    c4 = Conv2D(128, (3, 3), activation='relu', padding='same')(p3)
-    c4 = Conv2D(128, (3, 3), activation='relu', padding='same')(c4)
-    p4 = MaxPooling2D(pool_size=(2, 2))(c4)
+    # Downsampling (contraction) loop
+    for f, d in zip(filters[:-1], dropouts[:-1]):
+        x = tf.keras.layers.Conv2D(f, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
+        x = tf.keras.layers.Dropout(d)(x)
+        x = tf.keras.layers.Conv2D(f, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.ReLU()(x)
+
+        # Store skip connection for the upsampling path
+        skip_connections.append(x)
+
+        x = tf.keras.layers.MaxPooling2D(pool_size)(x)
 
     # Bottleneck
-    c5 = Conv2D(256, (3, 3), activation='relu', padding='same')(p4)
-    c5 = Conv2D(256, (3, 3), activation='relu', padding='same')(c5)
+    x = tf.keras.layers.Conv2D(filters[-1], (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Dropout(dropouts[-1])(x)
+    x = tf.keras.layers.Conv2D(filters[-1], (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
 
-    # Decoding path
-    u6 = concatenate([UpSampling2D((2, 2))(c5), c4])
-    c6 = Conv2D(128, (3, 3), activation='relu', padding='same')(u6)
-    c6 = Conv2D(128, (3, 3), activation='relu', padding='same')(c6)
+    # Upsampling (expansive) path
+    for f, skip in zip(reversed(filters[:-1]), reversed(skip_connections)):
+        x = tf.keras.layers.Conv2DTranspose(f, (2, 2), strides=(2, 2), padding='same')(x)
+        x = tf.keras.layers.concatenate([x, skip])  # Skip connection
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.ReLU()(x)
 
-    u7 = concatenate([UpSampling2D((2, 2))(c6), c3])
-    c7 = Conv2D(64, (3, 3), activation='relu', padding='same')(u7)
-    c7 = Conv2D(64, (3, 3), activation='relu', padding='same')(c7)
+    # Final output layer
+    outputs = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid')(x)
 
-    u8 = concatenate([UpSampling2D((2, 2))(c7), c2])
-    c8 = Conv2D(32, (3, 3), activation='relu', padding='same')(u8)
-    c8 = Conv2D(32, (3, 3), activation='relu', padding='same')(c8)
-
-    u9 = concatenate([UpSampling2D((2, 2))(c8), c1])
-    c9 = Conv2D(16, (3, 3), activation='relu', padding='same')(u9)
-    c9 = Conv2D(16, (3, 3), activation='relu', padding='same')(c9)
-
-    # Output layer
-    outputs = Conv2D(1, (1, 1), activation='sigmoid')(c9)
-
-    model = Model(inputs=[inputs], outputs=[outputs])
+    model = tf.keras.models.Model(inputs=[inputs], outputs=[outputs])
     return model
 
 # BCE w/ Intersection over Union (IoU)
@@ -167,8 +159,8 @@ def main():
     model = unet_model(input_size=(patch_size, patch_size, 1))
 
     # Train the model
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[iou])
-    checkpoint_callback = ModelCheckpoint(model_path, save_best_only=True)
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[iou]) # metrics=['accuracy', iou_metric]?
+    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(model_path, save_best_only=True)
     history = model.fit(train_dataset, epochs=epochs, validation_data=val_dataset, callbacks=[checkpoint_callback])
 
     # Create a figure with subplots
@@ -201,11 +193,6 @@ const std::string unet_16to512 = R"(
 import os
 import argparse
 import tensorflow as tf
-from tensorflow.keras.utils import image_dataset_from_directory
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 
 def augment_image(image, mask):
@@ -230,9 +217,9 @@ def augment_image(image, mask):
 
     return image, mask
 
-def load_images_and_masks(image_dir, mask_dir, target_size=(512, 512), batch_size=8, normalize=True, augment=True):
+def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8, normalize=True, augment=False):
     # Load images
-    image_dataset = image_dataset_from_directory(
+    image_dataset = tf.keras.utils.image_dataset_from_directory(
         image_dir,
         labels=None,
         image_size=target_size,
@@ -242,7 +229,7 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(512, 512), batch_siz
     )
 
     # Load masks
-    mask_dataset = image_dataset_from_directory(
+    mask_dataset = tf.keras.utils.image_dataset_from_directory(
         mask_dir,
         labels=None,
         image_size=target_size,
@@ -277,59 +264,48 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(512, 512), batch_siz
 
 # U-Net model definition
 def unet_model(input_size):
-    # Input layer
-    inputs = Input(input_size)
+    inputs = tf.keras.layers.Input(input_size)
 
-    # Encoding path
-    c1 = Conv2D(16, (3, 3), activation='relu', padding='same')(inputs)
-    c1 = Conv2D(16, (3, 3), activation='relu', padding='same')(c1)
-    p1 = MaxPooling2D((2, 2))(c1)
+    # Contraction path
+    filters = [16, 32, 64, 128, 256, 512]
+    dropouts = [0.1, 0.1, 0.2, 0.2, 0.3, 0.3]
+    pool_size = (2, 2)
 
-    c2 = Conv2D(32, (3, 3), activation='relu', padding='same')(p1)
-    c2 = Conv2D(32, (3, 3), activation='relu', padding='same')(c2)
-    p2 = MaxPooling2D((2, 2))(c2)
+    skip_connections = []  # To store the connections for the expansive path
 
-    c3 = Conv2D(64, (3, 3), activation='relu', padding='same')(p2)
-    c3 = Conv2D(64, (3, 3), activation='relu', padding='same')(c3)
-    p3 = MaxPooling2D(pool_size=(2, 2))(c3)
+    x = inputs  # Initial input to the network
 
-    c4 = Conv2D(128, (3, 3), activation='relu', padding='same')(p3)
-    c4 = Conv2D(128, (3, 3), activation='relu', padding='same')(c4)
-    p4 = MaxPooling2D(pool_size=(2, 2))(c4)
+    # Downsampling (contraction) loop
+    for f, d in zip(filters[:-1], dropouts[:-1]):
+        x = tf.keras.layers.Conv2D(f, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
+        x = tf.keras.layers.Dropout(d)(x)
+        x = tf.keras.layers.Conv2D(f, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.ReLU()(x)
 
-    c5 = Conv2D(256, (3, 3), activation='relu', padding='same')(p4)
-    c5 = Conv2D(256, (3, 3), activation='relu', padding='same')(c5)
-    p5 = MaxPooling2D(pool_size=(2, 2))(c5)
+        # Store skip connection for the upsampling path
+        skip_connections.append(x)
+
+        x = tf.keras.layers.MaxPooling2D(pool_size)(x)
 
     # Bottleneck
-    c6 = Conv2D(512, (3, 3), activation='relu', padding='same')(p5)
-    c6 = Conv2D(512, (3, 3), activation='relu', padding='same')(c6)
+    x = tf.keras.layers.Conv2D(filters[-1], (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
+    x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.ReLU()(x)
+    x = tf.keras.layers.Dropout(dropouts[-1])(x)
+    x = tf.keras.layers.Conv2D(filters[-1], (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(x)
 
-    # Decoding path
-    u7 = concatenate([UpSampling2D((2, 2))(c6), c5])
-    c7 = Conv2D(256, (3, 3), activation='relu', padding='same')(u7)
-    c7 = Conv2D(256, (3, 3), activation='relu', padding='same')(c7)
+    # Upsampling (expansive) path
+    for f, skip in zip(reversed(filters[:-1]), reversed(skip_connections)):
+        x = tf.keras.layers.Conv2DTranspose(f, (2, 2), strides=(2, 2), padding='same')(x)
+        x = tf.keras.layers.concatenate([x, skip])  # Skip connection
+        x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.ReLU()(x)
 
-    u8 = concatenate([UpSampling2D((2, 2))(c7), c4])
-    c8 = Conv2D(128, (3, 3), activation='relu', padding='same')(u8)
-    c8 = Conv2D(128, (3, 3), activation='relu', padding='same')(c8)
+    # Final output layer
+    outputs = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid')(x)
 
-    u9 = concatenate([UpSampling2D((2, 2))(c8), c3])
-    c9 = Conv2D(64, (3, 3), activation='relu', padding='same')(u9)
-    c9 = Conv2D(64, (3, 3), activation='relu', padding='same')(c9)
-
-    u10 = concatenate([UpSampling2D((2, 2))(c9), c2])
-    c10 = Conv2D(32, (3, 3), activation='relu', padding='same')(u10)
-    c10 = Conv2D(32, (3, 3), activation='relu', padding='same')(c10)
-
-    u11 = concatenate([UpSampling2D((2, 2))(c10), c1])
-    c11 = Conv2D(16, (3, 3), activation='relu', padding='same')(u11)
-    c11 = Conv2D(16, (3, 3), activation='relu', padding='same')(c11)
-
-    # Output layer
-    outputs = Conv2D(1, (1, 1), activation='sigmoid')(c11)
-
-    model = Model(inputs=[inputs], outputs=[outputs])
+    model = tf.keras.models.Model(inputs=[inputs], outputs=[outputs])
     return model
 
 # BCE w/ Intersection over Union (IoU)
@@ -372,8 +348,8 @@ def main():
     model = unet_model(input_size=(patch_size, patch_size, 1))
 
     # Train the model
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[iou])
-    checkpoint_callback = ModelCheckpoint(model_path, save_best_only=True)
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[iou]) # metrics=['accuracy', iou_metric]?
+    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(model_path, save_best_only=True)
     history = model.fit(train_dataset, epochs=epochs, validation_data=val_dataset, callbacks=[checkpoint_callback])
 
     # Create a figure with subplots
@@ -408,13 +384,11 @@ import argparse
 import numpy as np
 import math
 import tensorflow as tf
-from tensorflow.keras.utils import image_dataset_from_directory
-from tensorflow.keras.models import load_model
 from PIL import Image
 
 def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8):
     # Load images
-    image_dataset = image_dataset_from_directory(
+    image_dataset = tf.keras.utils.image_dataset_from_directory(
         image_dir,
         labels=None,
         image_size=target_size,
@@ -424,7 +398,7 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
     )
 
     # Load masks
-    mask_dataset = image_dataset_from_directory(
+    mask_dataset = tf.keras.utils.image_dataset_from_directory(
         mask_dir,
         labels=None,
         image_size=target_size,
@@ -478,7 +452,7 @@ def main():
     custom_objects = {
         'iou': iou
     }
-    loaded_model = load_model(model_path, custom_objects=custom_objects)
+    loaded_model = tf.keras.models.load_model(model_path, custom_objects=custom_objects)
 
     patches_per_row = 4
     rows = math.ceil(batch_size / patches_per_row)
