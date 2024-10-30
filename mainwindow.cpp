@@ -21,6 +21,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
     m_builder->get_widget("open_patch_btn", m_openPatchDialogBtn);
     m_builder->get_widget("open_training_btn", m_openTrainingDialogBtn);
+    m_builder->get_widget("test_model_btn1", m_testModelBtn);
 
     // Disable buttons initially
     m_viewSettingsBtn -> set_sensitive(false);
@@ -28,6 +29,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_openDrawingDialogBtn->set_sensitive(false);
     m_openPatchDialogBtn->set_sensitive(false);
     m_openTrainingDialogBtn->set_sensitive(false);
+    m_testModelBtn->set_sensitive(false);
 
     if (m_discoverBtn)
     {
@@ -173,6 +175,102 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
             m_trainModelMasksPath = m_modelMasksPickerFcb->get_filename();
             m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty());
         });
+    }
+
+    m_builder->get_widget("model_picker_fcb", m_modelPickerFcb);
+    if (m_modelPickerFcb)
+    {
+        m_modelPickerFcb->signal_selection_changed().connect([this]()
+        { 
+            auto model = m_modelPickerFcb->get_filename();
+            auto testImages = m_testImagesPickerFcb->get_filename();
+            auto testMasks = m_testMasksPickerFcb->get_filename();
+            auto pyEnv = m_pyEnvEntry->get_text();
+            auto patchSize = m_patchSizeSb->get_value();
+            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
+            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
+        });
+    }
+    m_builder->get_widget("test_images_picker_fcb", m_testImagesPickerFcb);
+    if (m_testImagesPickerFcb)
+    {
+        m_testImagesPickerFcb->signal_selection_changed().connect([this]()
+        { 
+            auto model = m_modelPickerFcb->get_filename();
+            auto testImages = m_testImagesPickerFcb->get_filename();
+            auto testMasks = m_testMasksPickerFcb->get_filename();
+            auto pyEnv = m_pyEnvEntry->get_text();
+            auto patchSize = m_patchSizeSb->get_value();
+            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
+            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
+        });
+    }
+    m_builder->get_widget("test_masks_picker_fcb", m_testMasksPickerFcb);
+    if (m_testMasksPickerFcb)
+    {
+        m_testMasksPickerFcb->signal_selection_changed().connect([this]()
+        { 
+            auto model = m_modelPickerFcb->get_filename();
+            auto testImages = m_testImagesPickerFcb->get_filename();
+            auto testMasks = m_testMasksPickerFcb->get_filename();
+            auto pyEnv = m_pyEnvEntry->get_text();
+            auto patchSize = m_patchSizeSb->get_value();
+            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
+            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
+        });
+    }
+    m_builder->get_widget("py_env_entry1", m_pyEnvEntry);
+    if (m_pyEnvEntry)
+    {
+        m_pyEnvEntry->signal_changed().connect([this]() 
+        { 
+            auto model = m_modelPickerFcb->get_filename();
+            auto testImages = m_testImagesPickerFcb->get_filename();
+            auto testMasks = m_testMasksPickerFcb->get_filename();
+            auto pyEnv = m_pyEnvEntry->get_text();
+            auto patchSize = m_patchSizeSb->get_value();
+            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
+            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
+        });
+    }
+    m_builder->get_widget("patch_size_sb", m_patchSizeSb);
+    if (m_patchSizeSb)
+    {
+        m_patchSizeSb->signal_value_changed().connect([this]()
+        { 
+            auto model = m_modelPickerFcb->get_filename();
+            auto testImages = m_testImagesPickerFcb->get_filename();
+            auto testMasks = m_testMasksPickerFcb->get_filename();
+            auto pyEnv = m_pyEnvEntry->get_text();
+            auto patchSize = m_patchSizeSb->get_value();
+            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
+            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
+        });
+    }
+    m_builder->get_widget("confidence_threshold_sb", m_confidenceThresholdSb);
+    if (m_confidenceThresholdSb)
+    {
+        m_confidenceThresholdSb->signal_value_changed().connect([this]()
+        { 
+            auto model = m_modelPickerFcb->get_filename();
+            auto testImages = m_testImagesPickerFcb->get_filename();
+            auto testMasks = m_testMasksPickerFcb->get_filename();
+            auto pyEnv = m_pyEnvEntry->get_text();
+            auto patchSize = m_patchSizeSb->get_value();
+            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
+            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
+        });
+    }
+    m_builder->get_widget("test_model_btn1", m_testModelBtn);
+    if (m_testModelBtn)
+    {
+        m_testModelBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onTestModelClicked));
+    }
+    m_builder->get_widget("view_test_result_lbtn1", m_viewTestResultBtn);
+    if (m_viewTestResultBtn)
+    {
+        m_viewTestResultBtn->set_sensitive(false);
+        m_viewTestResultBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onViewTestResultClicked));
     }
 }
 
@@ -1189,5 +1287,158 @@ void MainWindow::onOpenTrainingClicked()
     {
         TrainModelWindow->setModelPath(m_trainModelImagesPath, m_trainModelMasksPath);
         TrainModelWindow->present();
+    }
+}
+
+void MainWindow::onTestModelClicked()
+{
+    m_testModelBtn->set_sensitive(false);
+    m_testModelBtn->set_label("Testing...");
+
+    if (m_viewTestResultBtn)
+    {
+        m_viewTestResultBtn->set_sensitive(false);
+    }
+
+    auto modelPath = m_modelPickerFcb->get_filename();
+    auto testImages = m_testImagesPickerFcb->get_filename();
+    auto testMasks = m_testMasksPickerFcb->get_filename();
+    auto pyEnv = m_pyEnvEntry->get_text();
+    auto patchSize = static_cast<int>(m_patchSizeSb->get_value());
+    auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
+
+    // Write the Python script to the temp file
+    std::string tempPyPath = "/tmp/deep_scan/temp_unet_test.py";
+    if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
+    {
+        std::cerr << "Failed to create tmp directory.";
+
+        if (m_testModelBtn)
+        {
+            m_testModelBtn->set_sensitive(true);
+            m_testModelBtn->set_label("Start");
+        }
+
+        return;
+    }
+    else
+    {
+        std::ofstream tempUnetTestPyFile(tempPyPath);
+        if (tempUnetTestPyFile.is_open())
+        {
+            tempUnetTestPyFile << unet_test_py;
+            tempUnetTestPyFile.close();
+        }
+        else
+        {
+            std::cerr << "Failed to open temp_unet.py for writing" << std::endl;
+            m_logger->log("Unable to open temp_unet.py for writing", Logger::ERROR);
+
+            if (m_testModelBtn)
+            {
+                m_testModelBtn->set_sensitive(true);
+                m_testModelBtn->set_label("Start");
+            }
+
+            return;
+        }
+    }
+
+    // Command to execute the python script
+    std::string cmd = pyEnv + " " + tempPyPath +
+                        std::string(" --model_path ") + modelPath +
+                        std::string(" --test_images_path ") + testImages +
+                        std::string(" --test_masks_path ") + testMasks +
+                        std::string(" --patch_size ") + std::to_string(patchSize) +
+                        std::string(" --batch_size 16") +
+                        std::string(" --threshold ") + std::to_string(confidenceThreshold);
+
+    // Run the command in a separate thread
+    std::thread([this, cmd, tempPyPath, modelPath]() {
+        // Open a pipe to the command
+        FILE *pipe = popen(cmd.c_str(), "r");
+        if (!pipe)
+        {
+            std::cerr << "Failed to run command\n";
+            m_logger->log("Unable to run command: " + cmd, Logger::ERROR);
+        }
+
+        // Open log file for writing
+        std::filesystem::path path(modelPath);
+        auto modelDir = path.parent_path().string();
+        std::string logFilePath = Glib::build_filename(modelDir, "ds.log");
+        std::ofstream logFile(logFilePath, std::ios::out | std::ios::app); // Append mode
+        if (logFile.is_open())
+        {
+            std::string cmdForLogging = cmd;
+            // Find and replace tempPyPath with "ds_test.py" to hide the actual model py test script
+            size_t pos = cmdForLogging.find(tempPyPath);
+            if (pos != std::string::npos) 
+            {
+                cmdForLogging.replace(pos, tempPyPath.length(), "ds_test.py");
+            }
+            logFile << cmdForLogging << std::endl;
+        }
+
+        // Buffer to hold each line of output
+        std::array<char, 128> buffer;
+
+        // Read the output from the pipe line by line
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
+        {
+            std::cout << buffer.data(); // Print each line to the console
+            if (logFile.is_open()) {
+                logFile << buffer.data(); // Write each line to the log file
+            }
+        }
+
+        // Close the log file
+        if (logFile.is_open()) {
+            logFile.close();
+        }
+
+        // Close the pipe
+        int returnCode = pclose(pipe);
+        if (returnCode != 0)
+        {
+            std::cerr << "Command failed with return code " << returnCode << std::endl;
+            m_logger->log("Unable to close the pipe: " + std::to_string(returnCode), Logger::ERROR);
+        }
+
+        // Delete the tmp script after execution
+        std::remove(tempPyPath.c_str());
+
+        // Re-enable the button and reset the text back to "Start" on the main thread
+        Glib::signal_idle().connect_once([this]() {
+            if (m_testModelBtn)
+            {
+                m_testModelBtn->set_sensitive(true);
+                m_testModelBtn->set_label("Test");
+            }
+
+            if (m_viewTestResultBtn)
+            {
+                m_viewTestResultBtn->set_sensitive(true);
+            }
+        });
+    }).detach(); // Detach the thread so it runs independently
+}
+
+void MainWindow::onViewTestResultClicked()
+{
+    auto modelPath = m_modelPickerFcb->get_filename();
+
+    if (modelPath.empty())
+    {
+        return;
+    }
+
+    std::filesystem::path path(modelPath);
+    auto modelDir = path.parent_path().string();
+    std::string command = "xdg-open " + Glib::build_filename(modelDir, "test_result");
+    if (std::system(command.c_str()) != 0)
+    {
+        std::cerr << "Failed to open directory." << std::endl;
+        m_logger->log("Error to open the directory via command: " + command, Logger::ERROR);
     }
 }

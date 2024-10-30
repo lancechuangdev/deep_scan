@@ -56,9 +56,17 @@ protected:
     Gtk::FileChooserButton *m_patchPickerFcb;
     Gtk::FileChooserButton *m_modelImagesPickerFcb;
     Gtk::FileChooserButton *m_modelMasksPickerFcb;
-    Gtk::FileChooserButton *m_saveModelPickerFcb;
     Gtk::SpinButton *m_captureRateSb;
     
+    Gtk::FileChooserButton *m_modelPickerFcb;
+    Gtk::FileChooserButton *m_testImagesPickerFcb;
+    Gtk::FileChooserButton *m_testMasksPickerFcb;
+    Gtk::Entry *m_pyEnvEntry;
+    Gtk::SpinButton *m_confidenceThresholdSb;
+    Gtk::SpinButton *m_patchSizeSb;
+    Gtk::Button *m_testModelBtn;
+    Gtk::LinkButton *m_viewTestResultBtn;
+
     // Signal handlers:
     void onDiscoverClicked();
     void onViewSettingsClicked();
@@ -71,6 +79,8 @@ protected:
     void onSavePresetClicked();
     void onRecallPresetClicked();
     void onUploadSettingsClicked();
+    void onTestModelClicked();
+    void onViewTestResultClicked();
 
 private:
     Glib::RefPtr<Gtk::Builder> m_builder;
