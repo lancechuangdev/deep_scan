@@ -542,7 +542,7 @@ bool PreprocessWindow::onButtonReleaseEvent(GdkEventButton *button_event)
 {
     if (button_event->button == 1)
     {
-        if (m_isPatchingMode && m_imagePixbuf && m_maskPixbuf)
+        if (m_isPatchingMode && m_imagePixbuf /*&& m_maskPixbuf*/)
         {
             m_showPatchCursor = true;
 

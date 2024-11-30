@@ -12,6 +12,7 @@
 class FileUtils
 {
 public:
+    static std::string getCssFilePath();
     static std::string getGladeFilePath();
     static std::vector<std::string> getImageFiles(const std::string &folder_path, bool get_masks = false);
     static std::vector<std::string> findMatchingImages(const std::string& dirPath, const std::string& baseName, const std::regex& pattern);

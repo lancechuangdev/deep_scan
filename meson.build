@@ -34,6 +34,6 @@ executable('ds',
 
 # Install data files
 install_data(
-    'ui.glade', 
+    ['ui.glade', 'style.css'], 
     install_dir: join_paths(get_option('prefix'), 'share', 'deep-scan')
 )

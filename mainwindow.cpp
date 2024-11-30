@@ -8,14 +8,48 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
       m_frameQueue(20),
       m_logger(logger)
 {
+    // Create a CssProvider
+    auto css_file = FileUtils::getCssFilePath();
+    auto provider = Gtk::CssProvider::create();
+    provider->load_from_path(css_file);
+    
+    // Apply the CSS provider to the default screen
+    Gtk::StyleContext::add_provider_for_screen(
+        Gdk::Screen::get_default(),
+        provider,
+        GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+    );
+
     // Set the window title
     Gtk::Window *root;
     m_builder->get_widget("root", root);
     root->set_title("Deep Scan");
 
+    // Top Menu
+    m_builder->get_widget("main_stack", m_main_stack);
+    m_builder->get_widget("menu_capture_rbtn", m_menu_capture_rbtn);
+    if (m_menu_capture_rbtn)
+    {
+        m_menu_capture_rbtn->signal_toggled().connect(sigc::mem_fun(*this, &MainWindow::on_menu_toggled));
+    }
+    m_builder->get_widget("menu_annotation_rbtn", m_menu_annotation_rbtn);
+    if (m_menu_annotation_rbtn)
+    {
+        m_menu_annotation_rbtn->signal_toggled().connect(sigc::mem_fun(*this, &MainWindow::on_menu_toggled));
+    }
+    m_builder->get_widget("menu_training_rbtn", m_menu_training_rbtn);
+    if (m_menu_training_rbtn)
+    {
+        m_menu_training_rbtn->signal_toggled().connect(sigc::mem_fun(*this, &MainWindow::on_menu_toggled));
+    }
+    m_builder->get_widget("menu_test_rbtn", m_menu_test_rbtn);
+    if (m_menu_test_rbtn)
+    {
+        m_menu_test_rbtn->signal_toggled().connect(sigc::mem_fun(*this, &MainWindow::on_menu_toggled));
+    }
+
     // Get the button by ID and connect the signal handler.
     m_builder->get_widget("discover_btn", m_discoverBtn);
-    m_builder->get_widget("view_settings_btn", m_viewSettingsBtn);
     m_builder->get_widget("start_capture_btn", m_startCaptureBtn);
     m_builder->get_widget("stop_capture_btn", m_stopCaptureBtn);
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
@@ -24,7 +58,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("test_model_btn1", m_testModelBtn);
 
     // Disable buttons initially
-    m_viewSettingsBtn -> set_sensitive(false);
     m_startCaptureBtn->set_sensitive(false);
     m_openDrawingDialogBtn->set_sensitive(false);
     m_openPatchDialogBtn->set_sensitive(false);
@@ -35,10 +68,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     {
         m_discoverBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onDiscoverClicked));
     }
-    if (m_viewSettingsBtn)
-    {
-        m_viewSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onViewSettingsClicked));
-    }
+
     if (m_startCaptureBtn)
     {
         m_startCaptureBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStartCaptureClicked));
@@ -58,50 +88,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     if (m_openTrainingDialogBtn)
     {
         m_openTrainingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenTrainingClicked));
-    }
-
-    m_builder->get_widget("camera_list", m_camTreeView);
-
-    // Connect the signal to a handler function
-    Glib::RefPtr<Gtk::TreeSelection> selection = m_camTreeView->get_selection();
-    selection->signal_changed().connect(sigc::mem_fun(*this, &MainWindow::onTreeviewSelectionChanged));
-
-    // Create the ListStore, with 'm_camcols' as the column model
-    m_camListStore = Gtk::ListStore::create(m_camcols);
-
-    // Set the ListStore as the model for the cams TreeView
-    m_camTreeView->set_model(m_camListStore);
-
-    // Append columns to the TreeView
-    m_camTreeView->append_column("Model", m_camcols.col_model);
-    m_camTreeView->append_column("Friendly Name", m_camcols.col_friendly_name);
-    m_camTreeView->append_column("IP Address", m_camcols.col_ip);
-    m_camTreeView->append_column("Serial Number", m_camcols.col_sn);
-
-    // Device settings    
-    m_builder->get_widget("sn_lbl", m_snLbl);
-    m_builder->get_widget("exposure_entry", m_exposureTimeEntry);
-    m_builder->get_widget("frame_rate_lbl", m_frameRateLbl);
-    m_builder->get_widget("width_entry", m_widthEntry);
-    m_builder->get_widget("height_entry", m_heightEntry);
-    m_builder->get_widget("offset_x_entry", m_offsetXEntry);
-    m_builder->get_widget("offset_y_entry", m_offsetYEntry);
-    m_builder->get_widget("gain_entry", m_gainEntry);
-
-    m_builder->get_widget("save_settings_btn", m_saveSettingsBtn);
-    if (m_saveSettingsBtn)
-    {
-        m_saveSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onSavePresetClicked));
-    }
-    m_builder->get_widget("recall_settings_btn", m_recallSettingsBtn);
-    if (m_recallSettingsBtn)
-    {
-        m_recallSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onRecallPresetClicked));
-    }
-    m_builder->get_widget("upload_settings_btn", m_uploadSettingsBtn);
-    if (m_uploadSettingsBtn)
-    {
-        m_uploadSettingsBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onUploadSettingsClicked));
     }
 
     // Image Acquiring
@@ -278,6 +264,26 @@ MainWindow::~MainWindow()
 {
 }
 
+void MainWindow::on_menu_toggled()
+{
+    if (m_menu_capture_rbtn->get_active())
+    {
+        m_main_stack->set_visible_child("page_capture");
+    }
+    else if (m_menu_annotation_rbtn->get_active())
+    {
+        m_main_stack->set_visible_child("page_annotation");
+    }
+    else if (m_menu_training_rbtn->get_active())
+    {
+        m_main_stack->set_visible_child("page_training");
+    }
+    else if (m_menu_test_rbtn->get_active())
+    {
+        m_main_stack->set_visible_child("page_test");
+    }    
+}
+
 std::string getIpV4AddressString(uint32_t ip)
 {
     std::ostringstream ipStream;
@@ -341,553 +347,47 @@ void saveImageAsync(FrameData frameData, void *deviceHandle, std::string folderP
     }
 }
 
-void MainWindow::onTreeviewSelectionChanged()
-{
-    int nIndex = getSelectedCamIndex(m_camTreeView, m_camListStore);
-    m_viewSettingsBtn->set_sensitive(nIndex >= 0);
-}
-
 void MainWindow::onDiscoverClicked()
 {
-    // Clear the TreeView before adding new data
-    m_camListStore->clear();
     m_cameraComboBox->remove_all();
 
-    do
+    memset(&m_camList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
+
+    // enum device
+    int nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_camList);
+    if (nRet != MV_OK)
     {
-        memset(&m_camList, 0, sizeof(MV_CC_DEVICE_INFO_LIST));
+        std::cout << "MV_CC_EnumDevices fail! Error code: " << nRet << std::endl;
+        m_logger->log("Error on MV_CC_EnumDevices: " + std::to_string(nRet), Logger::ERROR);
+        return;
+    }
 
-        // enum device
-        int nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &m_camList);
-        if (nRet != MV_OK)
+    if (m_camList.nDeviceNum > 0)
+    {
+        for (unsigned int i = 0; i < m_camList.nDeviceNum; i++)
         {
-            std::cout << "MV_CC_EnumDevices fail! Error code: " << nRet << std::endl;
-            m_logger->log("Error on MV_CC_EnumDevices: " + std::to_string(nRet), Logger::ERROR);
-            break;
-        }
-
-        if (m_camList.nDeviceNum > 0)
-        {
-            for (unsigned int i = 0; i < m_camList.nDeviceNum; i++)
+            MV_CC_DEVICE_INFO *pDeviceInfo = m_camList.pDeviceInfo[i];
+            if (NULL == pDeviceInfo)
             {
-                MV_CC_DEVICE_INFO *pDeviceInfo = m_camList.pDeviceInfo[i];
-                if (NULL == pDeviceInfo)
-                {
-                    break;
-                }
-
-                Gtk::TreeModel::Row row = *(m_camListStore->append());
-                if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
-                {
-                    auto modelName = pDeviceInfo->SpecialInfo.stGigEInfo.chModelName;
-                    auto friendlyName = pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName;
-                    auto serialNumber = pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber;
-                    row[m_camcols.col_model] = Glib::ustring(reinterpret_cast<const char *>(modelName));
-                    row[m_camcols.col_friendly_name] = Glib::ustring(reinterpret_cast<const char *>(friendlyName));
-                    row[m_camcols.col_ip] = getIpV4AddressString(pDeviceInfo->SpecialInfo.stGigEInfo.nCurrentIp);
-                    row[m_camcols.col_sn] = Glib::ustring(reinterpret_cast<const char *>(serialNumber));
-
-                    // Add the camera name to the combo box
-                    m_cameraComboBox->append(std::string((char *)serialNumber));
-                }
-            }
-            m_cameraComboBox->append("All Cameras");
-        }
-        else
-        {
-            std::cout << "No device found." << std::endl;
-            m_logger->log("No device found.");
-            break;
-        }
-    } while (false);
-}
-
-void MainWindow::onViewSettingsClicked()
-{
-    int nIndex = getSelectedCamIndex(m_camTreeView, m_camListStore);
-    if (nIndex < 0)
-    {
-        std::cout << "No camera was selected." << std::endl;
-        m_logger->log("No camera was selected.");
-        return;
-    }
-
-    void *deviceHandle;
-    MV_CC_DEVICE_INFO *pSelectedCam = m_camList.pDeviceInfo[nIndex];
-    int nRet = MV_CC_CreateHandle(&deviceHandle, pSelectedCam);
-    if (nRet != MV_OK)
-    {
-        std::cout << "MV_CC_CreateHandle fail! Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_CreateHandle: " + std::to_string(nRet), Logger::ERROR);
-        return;
-    }
-
-    // Connect device
-    nRet = MV_CC_OpenDevice(deviceHandle);
-    if (nRet != MV_OK)
-    {
-        std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
-        return;
-    }
-
-    populateDeviceSettings(deviceHandle);
-
-    // Close device
-    nRet = MV_CC_CloseDevice(deviceHandle);
-    if (nRet != MV_OK)
-    {
-        std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_CloseDevice: " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Destroy handle
-    nRet = MV_CC_DestroyHandle(deviceHandle);
-    if (nRet != MV_OK)
-    {
-        std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_DestroyHandle: " + std::to_string(nRet), Logger::ERROR);
-    }
-}
-
-void MainWindow::populateDeviceSettings(void *deviceHandle)
-{
-    // Serial number
-    MVCC_STRINGVALUE sn = {0};
-    int nRet = MV_CC_GetStringValue(deviceHandle, "DeviceSerialNumber", &sn);
-    if (MV_OK == nRet && m_snLbl)
-    {
-        m_snLbl->set_text(Glib::ustring(sn.chCurValue));
-    }
-
-    // Exposure time
-    MVCC_FLOATVALUE exposureTime = {0};
-    nRet = MV_CC_GetFloatValue(deviceHandle, "ExposureTime", &exposureTime);
-    if (MV_OK == nRet && m_exposureTimeEntry)
-    {
-        // Convert float to string
-        std::ostringstream oss;
-        oss << exposureTime.fCurValue;
-
-        // Set the label text
-        m_exposureTimeEntry->set_text(Glib::ustring(oss.str()));
-    }
-    else
-    {
-        std::cout << "Failed to get exposure time. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_GetFloatValue(ExposureTime): " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Resulting Frame Rate
-    MVCC_FLOATVALUE frameRate = {0};
-    nRet = MV_CC_GetFloatValue(deviceHandle, "ResultingFrameRate", &frameRate);
-    if (MV_OK == nRet && m_frameRateLbl)
-    {
-        // Convert float to string
-        std::ostringstream oss;
-        oss << frameRate.fCurValue;
-
-        // Set the label text
-        m_frameRateLbl->set_text(oss.str());
-    }
-    else
-    {
-        std::cout << "Failed to get frame rate. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_GetFloatValue(ResultingFrameRate): " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Width
-    MVCC_INTVALUE width = {0};
-    nRet = MV_CC_GetIntValue(deviceHandle, "Width", &width);
-    if (MV_OK == nRet && m_widthEntry)
-    {
-        m_widthEntry->set_text(std::to_string(width.nCurValue));
-    }
-    else
-    {
-        std::cout << "Failed to get width. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_GetIntValue(Width): " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Height
-    MVCC_INTVALUE height = {0};
-    nRet = MV_CC_GetIntValue(deviceHandle, "Height", &height);
-    if (MV_OK == nRet && m_heightEntry)
-    {
-        m_heightEntry->set_text(std::to_string(height.nCurValue));
-    }
-    else
-    {
-        std::cout << "Failed to get height. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_GetIntValue(Height): " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Offset X
-    MVCC_INTVALUE offsetX = {0};
-    nRet = MV_CC_GetIntValue(deviceHandle, "OffsetX", &offsetX);
-    if (MV_OK == nRet && m_offsetXEntry)
-    {
-        m_offsetXEntry->set_text(std::to_string(offsetX.nCurValue));
-    }
-    else
-    {
-        std::cout << "Failed to get offsetX. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_GetIntValue(OffsetX): " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Offset Y
-    MVCC_INTVALUE offsetY = {0};
-    nRet = MV_CC_GetIntValue(deviceHandle, "OffsetY", &offsetY);
-    if (MV_OK == nRet && m_offsetYEntry)
-    {
-        m_offsetYEntry->set_text(std::to_string(offsetY.nCurValue));
-    }
-    else
-    {
-        std::cout << "Failed to get offsetY. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_GetIntValue(OffsetY): " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Gain
-    MVCC_FLOATVALUE gain = {0};
-    nRet = MV_CC_GetFloatValue(deviceHandle, "Gain", &gain);
-    if (MV_OK == nRet && m_gainEntry)
-    {
-        // Convert float to string
-        std::ostringstream oss;
-        oss << gain.fCurValue;
-
-        // Set the label text
-        m_gainEntry->set_text(oss.str());
-    }
-    else
-    {
-        std::cout << "Failed to get gain. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_GetFloatValue(Gain): " + std::to_string(nRet), Logger::ERROR);
-    }
-}
-
-void MainWindow::clearDeviceSettings()
-{
-    if (m_snLbl)
-    {
-        m_snLbl->set_text(std::string());
-    }
-    if (m_exposureTimeEntry)
-    {
-        m_exposureTimeEntry->set_text(std::string());
-    }
-    if (m_frameRateLbl)
-    {
-        m_frameRateLbl->set_text(std::string());
-    }
-    if (m_widthEntry)
-    {
-        m_widthEntry->set_text(std::string());
-    }
-    if (m_heightEntry)
-    {
-        m_heightEntry->set_text(std::string());
-    }
-    if (m_offsetXEntry)
-    {
-        m_offsetXEntry->set_text(std::string());
-    }
-    if (m_offsetYEntry)
-    {
-        m_offsetYEntry->set_text(std::string());
-    }
-    if (m_gainEntry)
-    {
-        m_gainEntry->set_text(std::string());
-    }
-}
-
-void MainWindow::onSavePresetClicked()
-{
-    if (!FileUtils::createFile(SettingsFilePath))
-    {
-        return;
-    }
-
-    // Step 1: Read the existing content of the file
-    std::ifstream settingsFile(SettingsFilePath);
-    std::stringstream buffer;
-    if (settingsFile.is_open())
-    {
-        buffer << settingsFile.rdbuf();
-        settingsFile.close();
-    }
-    else
-    {
-        std::cerr << "Unable to open settings file: " << SettingsFilePath << std::endl;
-        m_logger->log("Unable to open settings file: " + SettingsFilePath, Logger::ERROR);
-    }
-
-    std::string content = buffer.str();
-    std::string serialNumber;
-    if (m_snLbl)
-    {
-        serialNumber = m_snLbl->get_text();
-    }
-    std::string sectionHeader = "[" + serialNumber + "]";
-    std::stringstream sectionContent;
-    sectionContent << sectionHeader << std::endl;
-    if (m_exposureTimeEntry)
-    {
-        sectionContent << "exposureTime=" << m_exposureTimeEntry->get_text() << std::endl;
-    }
-    if (m_widthEntry)
-    {
-        sectionContent << "width=" << m_widthEntry->get_text() << std::endl;
-    }
-    if (m_heightEntry)
-    {
-        sectionContent << "height=" << m_heightEntry->get_text() << std::endl;
-    }
-    if (m_offsetXEntry)
-    {
-        sectionContent << "offsetX=" << m_offsetXEntry->get_text() << std::endl;
-    }
-    if (m_offsetYEntry)
-    {
-        sectionContent << "offsetY=" << m_offsetYEntry->get_text() << std::endl;
-    }
-    if (m_gainEntry)
-    {
-        sectionContent << "gain=" << m_gainEntry->get_text() << std::endl;
-    }
-    sectionContent << std::endl; // Add a blank line after the new section
-
-    // Step 2: Find if the section for the device already exists
-    size_t sectionPos = content.find(sectionHeader);
-    bool sectionExists = (sectionPos != std::string::npos);
-
-    if (sectionExists)
-    {
-        // Step 3: If the section exists, replace its contents
-        size_t nextSectionPos = content.find('[', sectionPos + 1); // Find the next section's starting position
-
-        // Replace the old section with the new one
-        if (nextSectionPos == std::string::npos)
-        {
-            // The section is the last one, so replace to the end of the file
-            content.replace(sectionPos, std::string::npos, sectionContent.str());
-        }
-        else
-        {
-            // Replace up to the next section
-            content.replace(sectionPos, nextSectionPos - sectionPos, sectionContent.str());
-        }
-    }
-    else
-    {
-        // Step 4: If the section doesn't exist, append the new section at the end
-        content += sectionContent.str();
-    }
-
-    // Step 5: Write the updated content back to the file (overwrite)
-    std::ofstream outFile(SettingsFilePath);
-    if (outFile.is_open()) 
-    {
-        outFile << content;
-        outFile.close();
-    }
-    else
-    {
-        std::cerr << "Unable to open settings file for writing." << std::endl;
-        m_logger->log("Unable to open settings file for writing: " + SettingsFilePath, Logger::ERROR);
-    }
-}
-
-void MainWindow::onRecallPresetClicked()
-{
-    std::ifstream settingsFile(SettingsFilePath);
-    std::string line;
-    bool isCurrentDevice = false;
-    std::string sn;
-
-    if (m_snLbl)
-    {
-        sn = m_snLbl->get_text();
-    }
-
-    if (settingsFile.is_open())
-    {
-        while (std::getline(settingsFile, line))
-        {
-            if (line == "[" + sn + "]")
-            {
-                isCurrentDevice = true;
-            }
-            else if (line.find('[') != std::string::npos)
-            {
-                isCurrentDevice = false; // New section means we passed the current device's settings
+                return;
             }
 
-            if (isCurrentDevice)
+            if (pDeviceInfo->nTLayerType == MV_GIGE_DEVICE)
             {
-                std::istringstream lineStream(line);
-                std::string key;
+                auto modelName = pDeviceInfo->SpecialInfo.stGigEInfo.chModelName;
+                auto friendlyName = pDeviceInfo->SpecialInfo.stGigEInfo.chUserDefinedName;
+                auto serialNumber = pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber;
 
-                if (std::getline(lineStream, key, '='))
-                {
-                    std::string value;
-                    if (key == "exposureTime" && std::getline(lineStream, value))
-                    {
-                        if (m_exposureTimeEntry)
-                        {
-                            m_exposureTimeEntry->set_text(Glib::ustring(value));
-                        }
-                    }
-                    else if (key == "width" && std::getline(lineStream, value))
-                    {
-                        if (m_widthEntry)
-                        {
-                            m_widthEntry->set_text(Glib::ustring(value));
-                        }
-                    }
-                    else if (key == "height" && std::getline(lineStream, value))
-                    {
-                        if (m_heightEntry)
-                        {
-                            m_heightEntry->set_text(Glib::ustring(value));
-                        }
-                    }
-                    else if (key == "offsetX" && std::getline(lineStream, value))
-                    {
-                        if (m_offsetXEntry)
-                        {
-                            m_offsetXEntry->set_text(Glib::ustring(value));
-                        }
-                    }
-                    else if (key == "offsetY" && std::getline(lineStream, value))
-                    {
-                        if (m_offsetYEntry)
-                        {
-                            m_offsetYEntry->set_text(Glib::ustring(value));
-                        }
-                    }
-                    else if (key == "gain" && std::getline(lineStream, value))
-                    {
-                        if (m_gainEntry)
-                        {
-                            m_gainEntry->set_text(Glib::ustring(value));
-                        }
-                    }
-                }
+                // Add the camera name to the combo box
+                m_cameraComboBox->append(std::string((char *)serialNumber));
             }
         }
-        settingsFile.close();
+        m_cameraComboBox->append("All Cameras");
     }
-}
-
-void MainWindow::onUploadSettingsClicked()
-{
-    // Create device handle
-    void* deviceHandle = nullptr;
-    if (!m_snLbl)
+    else
     {
-        return;
-    }
-    deviceHandle = getDeviceHandleBySerialNumber(m_snLbl->get_text());
-    if (deviceHandle == nullptr)
-    {
-        std::cout << "getDeviceHandleBySerialNumber fail! deviceHandle is nullptr" << std::endl;
-        m_logger->log("Error on getDeviceHandleBySerialNumber, deviceHandle is nullptr.", Logger::ERROR);
-        return;
-    }
-
-    // Connect to the device
-    int nRet = MV_CC_OpenDevice(deviceHandle);
-    if (nRet != MV_OK)
-    {
-        std::cout << "MV_CC_OpenDevice fail! Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_OpenDevice: " + std::to_string(nRet), Logger::ERROR);
-        return;
-    }
-
-    // Set device settings
-    if (m_exposureTimeEntry)
-    {
-        auto exposureTime = m_exposureTimeEntry->get_text();
-        nRet = MV_CC_SetFloatValue(deviceHandle, "ExposureTime", std::stof(exposureTime));
-        if (MV_OK != nRet)
-        {
-            std::cerr << "Error to set exposure time. Error code: " << nRet << std::endl;
-            m_logger->log("Error on MV_CC_SetFloatValue(ExposureTime): " + std::to_string(nRet), Logger::ERROR);
-        }
-    }
-
-    if (m_widthEntry)
-    {
-        auto width = m_widthEntry->get_text();
-        nRet = MV_CC_SetIntValue(deviceHandle, "Width", std::stoi(width));
-        if (MV_OK != nRet)
-        {
-            std::cerr << "Error to set width. Error code: " << nRet << std::endl;
-            m_logger->log("Error on MV_CC_SetIntValue(Width): " + std::to_string(nRet), Logger::ERROR);
-        }
-    }
-
-    if (m_heightEntry)
-    {
-        auto height = m_heightEntry->get_text();
-        nRet = MV_CC_SetIntValue(deviceHandle, "Height", std::stoi(height));
-        if (MV_OK != nRet)
-        {
-            std::cerr << "Error to set height. Error code: " << nRet << std::endl;
-            m_logger->log("Error on MV_CC_SetIntValue(Height): " + std::to_string(nRet), Logger::ERROR);
-        }
-    }
-
-    if (m_offsetXEntry)
-    {
-        auto offsetX = m_offsetXEntry->get_text();
-        nRet = MV_CC_SetIntValue(deviceHandle, "OffsetX", std::stoi(offsetX));
-        if (MV_OK != nRet)
-        {
-            std::cerr << "Error to set offsetX. Error code: " << nRet << std::endl;
-            m_logger->log("Error on MV_CC_SetIntValue(OffsetX): " + std::to_string(nRet), Logger::ERROR);
-        }
-    }
-
-    if (m_offsetYEntry)
-    {
-        auto offsetY = m_offsetYEntry->get_text();
-        nRet = MV_CC_SetIntValue(deviceHandle, "OffsetY", std::stoi(offsetY));
-        if (MV_OK != nRet)
-        {
-            std::cerr << "Error to set offsetY. Error code: " << nRet << std::endl;
-            m_logger->log("Error on MV_CC_SetIntValue(OffsetY): " + std::to_string(nRet), Logger::ERROR);
-        }
-    }
-
-    if (m_gainEntry)
-    {
-        auto gain = m_gainEntry->get_text();
-        nRet = MV_CC_SetFloatValue(deviceHandle, "Gain", std::stof(gain));
-        if (MV_OK != nRet)
-        {
-            std::cerr << "Error to set gain. Error code: " << nRet << std::endl;
-            m_logger->log("Error on MV_CC_SetFloatValue(Gain): " + std::to_string(nRet), Logger::ERROR);
-        }
-    }
-
-    // Close device
-    nRet = MV_CC_CloseDevice(deviceHandle);
-    if (nRet != MV_OK)
-    {
-        std::cout << "MV_CC_CloseDevice fail. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_CloseDevice: " + std::to_string(nRet), Logger::ERROR);
-    }
-
-    // Destroy handle
-    nRet = MV_CC_DestroyHandle(deviceHandle);
-    if (nRet != MV_OK)
-    {
-        std::cout << "MV_CC_DestroyHandle fail. Error code: " << nRet << std::endl;
-        m_logger->log("Error on MV_CC_DestroyHandle: " + std::to_string(nRet), Logger::ERROR);
+        std::cout << "No device found." << std::endl;
+        m_logger->log("No device found.");
     }
 }
 

@@ -1,5 +1,25 @@
 #include "fileutils.h"
 
+std::string FileUtils::getCssFilePath()
+{
+    const std::filesystem::path dev_path = "../style.css";
+    const std::filesystem::path install_path = "/usr/local/share/eagle_eye/style.css";
+
+    if (std::filesystem::exists(dev_path))
+    {
+        return dev_path;
+    }
+    else if (std::filesystem::exists(install_path))
+    {
+        return install_path;
+    }
+    else
+    {
+        std::cerr << "CSS file not found!" << std::endl;
+        return "";
+    }
+}
+
 std::string FileUtils::getGladeFilePath()
 {
     const std::filesystem::path dev_path = "../ui.glade";
