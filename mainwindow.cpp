@@ -52,23 +52,22 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("discover_btn", m_discoverBtn);
     m_builder->get_widget("start_capture_btn", m_startCaptureBtn);
     m_builder->get_widget("stop_capture_btn", m_stopCaptureBtn);
+    m_builder->get_widget("annotation_filter_btn", m_annotation_filter_btn);
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
     m_builder->get_widget("open_patch_btn", m_openPatchDialogBtn);
-    m_builder->get_widget("open_training_btn", m_openTrainingDialogBtn);
     m_builder->get_widget("test_model_btn1", m_testModelBtn);
 
     // Disable buttons initially
     m_startCaptureBtn->set_sensitive(false);
+    m_annotation_filter_btn->set_sensitive(false);
     m_openDrawingDialogBtn->set_sensitive(false);
     m_openPatchDialogBtn->set_sensitive(false);
-    m_openTrainingDialogBtn->set_sensitive(false);
     m_testModelBtn->set_sensitive(false);
 
     if (m_discoverBtn)
     {
         m_discoverBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onDiscoverClicked));
     }
-
     if (m_startCaptureBtn)
     {
         m_startCaptureBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStartCaptureClicked));
@@ -77,6 +76,10 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     {
         m_stopCaptureBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStopCaptureClicked));
     }
+    if (m_annotation_filter_btn)
+    {
+        m_annotation_filter_btn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onFilterImagesClicked));
+    }
     if (m_openDrawingDialogBtn)
     {
         m_openDrawingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenDrawingClicked));
@@ -84,10 +87,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     if (m_openPatchDialogBtn)
     {
         m_openPatchDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenPreprocessingClicked));
-    }
-    if (m_openTrainingDialogBtn)
-    {
-        m_openTrainingDialogBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onOpenTrainingClicked));
     }
 
     // Image Acquiring
@@ -112,6 +111,24 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     }
     m_builder->get_widget("capture_rate_sb", m_captureRateSb);
 
+    m_builder->get_widget("filter_picker_fcb", m_filter_picker_fcb);
+    if (m_filter_picker_fcb)
+    {
+        m_filter_picker_fcb->signal_selection_changed().connect([this]()
+        {
+            // Get the selected folder path
+            std::string images_dir = m_filter_picker_fcb->get_filename();
+            std::string py_env = "";
+
+            if (m_annotation_py_env_entry)
+            {
+                py_env = m_annotation_py_env_entry->get_text();
+            }
+
+            m_annotation_filter_btn->set_sensitive(!images_dir.empty() && !py_env.empty()); 
+        });
+    }
+
     // Image Labelling
     m_builder->get_widget("labeling_picker_fcb", m_labelingPickerFcb);
     if (m_labelingPickerFcb)
@@ -124,7 +141,24 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
             m_imageLabelingPath = folder;
 
             // Enable the start button if a folder is selected
-            m_openDrawingDialogBtn->set_sensitive(!folder.empty()); 
+            m_openDrawingDialogBtn->set_sensitive(!folder.empty());
+        });
+    }
+
+    m_builder->get_widget("annotation_py_env_entry", m_annotation_py_env_entry);
+    if (m_annotation_py_env_entry)
+    {
+        m_annotation_py_env_entry->signal_changed().connect([this]() 
+        { 
+            std::string py_env = m_annotation_py_env_entry->get_text();
+            std::string images_dir = "";
+            
+            if (m_filter_picker_fcb)
+            {
+                images_dir = m_filter_picker_fcb->get_filename();
+            }
+
+            m_annotation_filter_btn->set_sensitive(!images_dir.empty() && !py_env.empty()); 
         });
     }
 
@@ -149,7 +183,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         m_modelImagesPickerFcb->signal_selection_changed().connect([this]()
         {
             m_trainModelImagesPath = m_modelImagesPickerFcb->get_filename();
-            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty());
         });
     }
 
@@ -159,7 +192,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         m_modelMasksPickerFcb->signal_selection_changed().connect([this]()
         {
             m_trainModelMasksPath = m_modelMasksPickerFcb->get_filename();
-            m_openTrainingDialogBtn->set_sensitive(!m_trainModelImagesPath.empty() && !m_trainModelMasksPath.empty());
         });
     }
 
@@ -753,6 +785,114 @@ void MainWindow::stopCapture(void *deviceHandle)
     }
 }
 
+void MainWindow::onFilterImagesClicked()
+{
+    if (m_annotation_filter_btn)
+    {
+        m_annotation_filter_btn->set_sensitive(false); // Disable the button
+        m_annotation_filter_btn->set_label("Filtering...");
+    }
+
+    // Write the Python script to the temp file
+    std::string tempPyPath = "/tmp/deep_scan/temp_mobilenet_v2.py";
+    if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
+    {
+        std::cerr << "Failed to create tmp directory.";
+        m_logger->log("Unable to create tmp directory: /tmp/deep_scan", Logger::ERROR);
+
+        if (m_annotation_filter_btn)
+        {
+            m_annotation_filter_btn->set_sensitive(true);
+            m_annotation_filter_btn->set_label("Filter");
+        }
+
+        return;
+    }
+    else
+    {
+        std::ofstream temp_mobilenet_v2_test(tempPyPath);
+        if (temp_mobilenet_v2_test.is_open())
+        {
+            temp_mobilenet_v2_test << mobilenet_v2_test;
+            temp_mobilenet_v2_test.close();
+        }
+        else
+        {
+            std::cerr << "Failed to open temp_mobilenet_v2_test.py for writing" << std::endl;
+            m_logger->log("Unable to open temp_mobilenet_v2_test.py for writing", Logger::ERROR);
+
+            if (m_annotation_filter_btn)
+            {
+                m_annotation_filter_btn->set_sensitive(true);
+                m_annotation_filter_btn->set_label("Filter");
+            }
+
+            return;
+        }
+    }
+
+    // Command to execute the python script
+    std::string py_env = m_annotation_py_env_entry->get_text();
+    std::string images_dir = m_filter_picker_fcb->get_filename();
+
+    if (images_dir.empty() || py_env.empty())
+    {
+        if (m_annotation_filter_btn)
+        {
+            m_annotation_filter_btn->set_sensitive(true);
+            m_annotation_filter_btn->set_label("Filter");
+        }
+
+        return;
+    }
+
+    std::string cmd = py_env + " " + tempPyPath + std::string(" --images_dir ") + images_dir;
+    
+    // Run the command in a separate thread
+    std::thread([this, cmd, tempPyPath]() {
+        // Open a pipe to the command
+        FILE *pipe = popen(cmd.c_str(), "r");
+        if (!pipe)
+        {
+            std::cerr << "Failed to open a pipe and run command\n";
+            m_logger->log("Error to open a pipe and run command: " + cmd, Logger::ERROR);
+            return;
+        }
+
+        // Buffer to hold each line of output
+        std::array<char, 256> buffer;
+
+        // Read the output from the pipe line by line
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
+        {
+            std::cout << buffer.data(); // Print each line to the console
+        }
+
+        // Close the pipe
+        int returnCode = pclose(pipe);
+        if (returnCode != 0)
+        {
+            std::cerr << "Command failed with return code " << returnCode << std::endl;
+            m_logger->log("Error to close the pipe: " + std::to_string(returnCode), Logger::ERROR);
+        }
+
+        // Optionally handle the result here or update the UI (make sure UI updates happen on the main thread)
+        std::cout << "Python script finished execution." << std::endl;
+
+        // Delete the tmp script after execution
+        std::remove(tempPyPath.c_str());
+
+        // Re-enable the button and reset the text on the main thread
+        Glib::signal_idle().connect_once([this]() {
+            if (m_annotation_filter_btn)
+            {
+                m_annotation_filter_btn->set_sensitive(true);
+                m_annotation_filter_btn->set_label("Filter");
+            }
+        });
+    }).detach(); // Detach the thread so it runs independently
+}
+
 void MainWindow::onOpenDrawingClicked()
 {
     // Create the DrawWindow from the Glade file
@@ -775,18 +915,6 @@ void MainWindow::onOpenPreprocessingClicked()
     {
         PreprocessWindow->setImagePreprocessingPath(m_preprocessImagePath);
         PreprocessWindow->present(); // Show the window
-    }
-}
-
-void MainWindow::onOpenTrainingClicked()
-{
-    auto gladeFile = FileUtils::getGladeFilePath();
-    TrainModelWindow *TrainModelWindow = TrainModelWindow::create(gladeFile, m_logger);
-
-    if (TrainModelWindow)
-    {
-        TrainModelWindow->setModelPath(m_trainModelImagesPath, m_trainModelMasksPath);
-        TrainModelWindow->present();
     }
 }
 

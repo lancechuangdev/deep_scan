@@ -36,14 +36,15 @@ protected:
     Gtk::Button *m_discoverBtn;
     Gtk::Button *m_startCaptureBtn;
     Gtk::Button *m_stopCaptureBtn;
+    Gtk::Button *m_annotation_filter_btn;
     Gtk::Button *m_openDrawingDialogBtn;
     Gtk::Button *m_openPatchDialogBtn;
-    Gtk::Button *m_openTrainingDialogBtn;
     Gtk::Label *m_snLbl;
     Gtk::Label *m_frameRateLbl;
 
     Gtk::ComboBoxText *m_cameraComboBox;
     Gtk::FileChooserButton *m_capturePickerFcb;
+    Gtk::FileChooserButton *m_filter_picker_fcb;
     Gtk::FileChooserButton *m_labelingPickerFcb;
     Gtk::FileChooserButton *m_patchPickerFcb;
     Gtk::FileChooserButton *m_modelImagesPickerFcb;
@@ -54,6 +55,7 @@ protected:
     Gtk::FileChooserButton *m_testImagesPickerFcb;
     Gtk::FileChooserButton *m_testMasksPickerFcb;
     Gtk::Entry *m_pyEnvEntry;
+    Gtk::Entry *m_annotation_py_env_entry;
     Gtk::SpinButton *m_confidenceThresholdSb;
     Gtk::SpinButton *m_patchSizeSb;
     Gtk::Button *m_testModelBtn;
@@ -63,9 +65,9 @@ protected:
     void onDiscoverClicked();
     void onStartCaptureClicked();
     void onStopCaptureClicked();
+    void onFilterImagesClicked();
     void onOpenDrawingClicked();
     void onOpenPreprocessingClicked();
-    void onOpenTrainingClicked();
     void onTestModelClicked();
     void onViewTestResultClicked();
 
