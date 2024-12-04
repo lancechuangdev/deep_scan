@@ -20,7 +20,7 @@ resource_target = gnome.compile_resources(
 )
 
 executable('ds', 
-    [resource_target, 'main.cpp', 'mainwindow.cpp', 'framequeue.cpp', 'drawwindow.cpp', 'preprocesswindow.cpp', 'trainmodelwindow.cpp', 'fileutils.cpp', 'pyscript.cpp', 'logger.cpp'],
+    [resource_target, 'main.cpp', 'mainwindow.cpp', 'framequeue.cpp', 'drawwindow.cpp', 'preprocesswindow.cpp', 'fileutils.cpp', 'pyscript.cpp', 'logger.cpp'],
     install: true,
     install_dir: join_paths(get_option('prefix'), 'bin', 'deep-scan'),
     dependencies: gtkmm_dep,
@@ -34,6 +34,6 @@ executable('ds',
 
 # Install data files
 install_data(
-    ['ui.glade', 'style.css'], 
+    ['ui.glade', 'style.css', 'ee.h5'], 
     install_dir: join_paths(get_option('prefix'), 'share', 'deep-scan')
 )

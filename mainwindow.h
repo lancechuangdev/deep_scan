@@ -17,7 +17,6 @@
 #include "framequeue.h"
 #include "drawwindow.h"
 #include "preprocesswindow.h"
-#include "trainmodelwindow.h"
 #include "fileutils.h"
 #include "logger.h"
 
@@ -41,6 +40,8 @@ protected:
     Gtk::Button *m_openPatchDialogBtn;
     Gtk::Label *m_snLbl;
     Gtk::Label *m_frameRateLbl;
+    Gtk::Entry *m_annotation_py_env_entry;
+    Gtk::SpinButton *m_annotation_pred_fidelity_sb;
 
     Gtk::ComboBoxText *m_cameraComboBox;
     Gtk::FileChooserButton *m_capturePickerFcb;
@@ -51,23 +52,29 @@ protected:
     Gtk::FileChooserButton *m_modelMasksPickerFcb;
     Gtk::SpinButton *m_captureRateSb;
     
-    Gtk::FileChooserButton *m_modelPickerFcb;
-    Gtk::FileChooserButton *m_testImagesPickerFcb;
-    Gtk::FileChooserButton *m_testMasksPickerFcb;
-    Gtk::Entry *m_pyEnvEntry;
-    Gtk::Entry *m_annotation_py_env_entry;
-    Gtk::SpinButton *m_confidenceThresholdSb;
+    Gtk::ComboBoxText *m_modelComboBox;
     Gtk::SpinButton *m_patchSizeSb;
+    Gtk::SpinButton *m_batchSizeSb;
+    Gtk::Entry *m_pyEnvEntry;
+    Gtk::SpinButton *m_epochsSb;
+    Gtk::Button *m_startTrainingBtn;
+    Gtk::LinkButton *m_viewModelBtn;
+    Gtk::Label *m_test_images_dir_lbl;
+    Gtk::Label *m_test_masks_dir_lbl;
+    Gtk::SpinButton *m_predFidelitySb;
     Gtk::Button *m_testModelBtn;
     Gtk::LinkButton *m_viewTestResultBtn;
 
     // Signal handlers:
+    void on_window_shown();
     void onDiscoverClicked();
     void onStartCaptureClicked();
     void onStopCaptureClicked();
     void onFilterImagesClicked();
     void onOpenDrawingClicked();
     void onOpenPreprocessingClicked();
+    void onStartTrainingClicked();
+    void onViewModelClicked();
     void onTestModelClicked();
     void onViewTestResultClicked();
 
@@ -78,8 +85,6 @@ private:
     FrameQueue m_frameQueue;
     std::string m_imageLabelingPath;
     std::string m_preprocessImagePath;
-    std::string m_trainModelImagesPath;
-    std::string m_trainModelMasksPath;
     std::atomic<bool> m_isCapturing;
     std::vector<void*> m_deviceHandles;
     static const std::string SettingsFilePath;

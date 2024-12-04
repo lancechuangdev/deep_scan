@@ -96,6 +96,11 @@ void PreprocessWindow::on_window_shown()
 {
     this->set_title(Glib::ustring::compose("Preprocess Images in %1", m_preprocessImagePath));
 
+    if (m_patchSizeSb)
+    {
+        m_patchSize = m_patchSizeSb->get_value_as_int();
+    }
+
     if (m_preprocessImageQueue.empty())
     {
         return;

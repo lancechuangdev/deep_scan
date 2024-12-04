@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "pyscript.h"
 
 const std::string MainWindow::SettingsFilePath = std::string(std::getenv("HOME")) + "/.config/deep-scan/settings.ini";
 
@@ -24,6 +25,8 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     Gtk::Window *root;
     m_builder->get_widget("root", root);
     root->set_title("Deep Scan");
+
+    signal_show().connect(sigc::mem_fun(*this, &MainWindow::on_window_shown));
 
     // Top Menu
     m_builder->get_widget("main_stack", m_main_stack);
@@ -55,14 +58,12 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     m_builder->get_widget("annotation_filter_btn", m_annotation_filter_btn);
     m_builder->get_widget("open_drawing_btn", m_openDrawingDialogBtn);
     m_builder->get_widget("open_patch_btn", m_openPatchDialogBtn);
-    m_builder->get_widget("test_model_btn1", m_testModelBtn);
 
     // Disable buttons initially
     m_startCaptureBtn->set_sensitive(false);
     m_annotation_filter_btn->set_sensitive(false);
     m_openDrawingDialogBtn->set_sensitive(false);
     m_openPatchDialogBtn->set_sensitive(false);
-    m_testModelBtn->set_sensitive(false);
 
     if (m_discoverBtn)
     {
@@ -111,6 +112,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     }
     m_builder->get_widget("capture_rate_sb", m_captureRateSb);
 
+    // Image Labelling
     m_builder->get_widget("filter_picker_fcb", m_filter_picker_fcb);
     if (m_filter_picker_fcb)
     {
@@ -126,22 +128,6 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
             }
 
             m_annotation_filter_btn->set_sensitive(!images_dir.empty() && !py_env.empty()); 
-        });
-    }
-
-    // Image Labelling
-    m_builder->get_widget("labeling_picker_fcb", m_labelingPickerFcb);
-    if (m_labelingPickerFcb)
-    {
-        m_labelingPickerFcb->signal_selection_changed().connect([this]()
-        {
-            // Get the selected folder path
-            auto folder = m_labelingPickerFcb->get_filename();
-
-            m_imageLabelingPath = folder;
-
-            // Enable the start button if a folder is selected
-            m_openDrawingDialogBtn->set_sensitive(!folder.empty());
         });
     }
 
@@ -162,6 +148,23 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         });
     }
 
+    m_builder->get_widget("annotation_pred_fidelity_sb", m_annotation_pred_fidelity_sb);
+
+    m_builder->get_widget("labeling_picker_fcb", m_labelingPickerFcb);
+    if (m_labelingPickerFcb)
+    {
+        m_labelingPickerFcb->signal_selection_changed().connect([this]()
+        {
+            // Get the selected folder path
+            auto folder = m_labelingPickerFcb->get_filename();
+
+            m_imageLabelingPath = folder;
+
+            // Enable the start button if a folder is selected
+            m_openDrawingDialogBtn->set_sensitive(!folder.empty());
+        });
+    }
+
     m_builder->get_widget("patch_picker_fcb", m_patchPickerFcb);
     if (m_patchPickerFcb)
     {
@@ -177,123 +180,116 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         });
     }
 
-    m_builder->get_widget("model_Images_picker_fcb", m_modelImagesPickerFcb);
-    if (m_modelImagesPickerFcb)
+    // Training model
+    m_builder->get_widget("train_model_images_picker_fcb", m_modelImagesPickerFcb);
+    m_builder->get_widget("train_model_masks_picker_fcb", m_modelMasksPickerFcb);
+    m_builder->get_widget("train_model_name_combobox", m_modelComboBox);
+    m_builder->get_widget("model_patch_size_sb", m_patchSizeSb);
+    m_builder->get_widget("model_batch_size_sb", m_batchSizeSb);
+    m_builder->get_widget("py_env_entry", m_pyEnvEntry);
+    m_builder->get_widget("epochs_sb", m_epochsSb);
+    m_builder->get_widget("start_training_btn", m_startTrainingBtn);
+    if (m_startTrainingBtn)
     {
-        m_modelImagesPickerFcb->signal_selection_changed().connect([this]()
-        {
-            m_trainModelImagesPath = m_modelImagesPickerFcb->get_filename();
-        });
+        m_startTrainingBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onStartTrainingClicked));
+    }
+    m_builder->get_widget("view_model_lbtn", m_viewModelBtn);
+    if (m_viewModelBtn)
+    {
+        m_viewModelBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onViewModelClicked));
     }
 
-    m_builder->get_widget("model_masks_picker_fcb", m_modelMasksPickerFcb);
-    if (m_modelMasksPickerFcb)
-    {
-        m_modelMasksPickerFcb->signal_selection_changed().connect([this]()
-        {
-            m_trainModelMasksPath = m_modelMasksPickerFcb->get_filename();
-        });
-    }
-
-    m_builder->get_widget("model_picker_fcb", m_modelPickerFcb);
-    if (m_modelPickerFcb)
-    {
-        m_modelPickerFcb->signal_selection_changed().connect([this]()
-        { 
-            auto model = m_modelPickerFcb->get_filename();
-            auto testImages = m_testImagesPickerFcb->get_filename();
-            auto testMasks = m_testMasksPickerFcb->get_filename();
-            auto pyEnv = m_pyEnvEntry->get_text();
-            auto patchSize = m_patchSizeSb->get_value();
-            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
-            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
-        });
-    }
-    m_builder->get_widget("test_images_picker_fcb", m_testImagesPickerFcb);
-    if (m_testImagesPickerFcb)
-    {
-        m_testImagesPickerFcb->signal_selection_changed().connect([this]()
-        { 
-            auto model = m_modelPickerFcb->get_filename();
-            auto testImages = m_testImagesPickerFcb->get_filename();
-            auto testMasks = m_testMasksPickerFcb->get_filename();
-            auto pyEnv = m_pyEnvEntry->get_text();
-            auto patchSize = m_patchSizeSb->get_value();
-            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
-            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
-        });
-    }
-    m_builder->get_widget("test_masks_picker_fcb", m_testMasksPickerFcb);
-    if (m_testMasksPickerFcb)
-    {
-        m_testMasksPickerFcb->signal_selection_changed().connect([this]()
-        { 
-            auto model = m_modelPickerFcb->get_filename();
-            auto testImages = m_testImagesPickerFcb->get_filename();
-            auto testMasks = m_testMasksPickerFcb->get_filename();
-            auto pyEnv = m_pyEnvEntry->get_text();
-            auto patchSize = m_patchSizeSb->get_value();
-            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
-            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
-        });
-    }
-    m_builder->get_widget("py_env_entry1", m_pyEnvEntry);
-    if (m_pyEnvEntry)
-    {
-        m_pyEnvEntry->signal_changed().connect([this]() 
-        { 
-            auto model = m_modelPickerFcb->get_filename();
-            auto testImages = m_testImagesPickerFcb->get_filename();
-            auto testMasks = m_testMasksPickerFcb->get_filename();
-            auto pyEnv = m_pyEnvEntry->get_text();
-            auto patchSize = m_patchSizeSb->get_value();
-            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
-            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
-        });
-    }
-    m_builder->get_widget("patch_size_sb", m_patchSizeSb);
-    if (m_patchSizeSb)
-    {
-        m_patchSizeSb->signal_value_changed().connect([this]()
-        { 
-            auto model = m_modelPickerFcb->get_filename();
-            auto testImages = m_testImagesPickerFcb->get_filename();
-            auto testMasks = m_testMasksPickerFcb->get_filename();
-            auto pyEnv = m_pyEnvEntry->get_text();
-            auto patchSize = m_patchSizeSb->get_value();
-            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
-            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
-        });
-    }
-    m_builder->get_widget("confidence_threshold_sb", m_confidenceThresholdSb);
-    if (m_confidenceThresholdSb)
-    {
-        m_confidenceThresholdSb->signal_value_changed().connect([this]()
-        { 
-            auto model = m_modelPickerFcb->get_filename();
-            auto testImages = m_testImagesPickerFcb->get_filename();
-            auto testMasks = m_testMasksPickerFcb->get_filename();
-            auto pyEnv = m_pyEnvEntry->get_text();
-            auto patchSize = m_patchSizeSb->get_value();
-            auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
-            m_testModelBtn->set_sensitive(!model.empty() && !testImages.empty() && !testMasks.empty() && !pyEnv.empty() && patchSize > 0 && confidenceThreshold > 0.0);
-        });
-    }
-    m_builder->get_widget("test_model_btn1", m_testModelBtn);
+    // Test model
+    m_builder->get_widget("test_images_dir_lbl", m_test_images_dir_lbl);
+    m_builder->get_widget("test_masks_dir_lbl", m_test_masks_dir_lbl);
+    m_builder->get_widget("pred_fidelity_sb",m_predFidelitySb);
+    m_builder->get_widget("test_model_btn", m_testModelBtn);
     if (m_testModelBtn)
     {
         m_testModelBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onTestModelClicked));
     }
-    m_builder->get_widget("view_test_result_lbtn1", m_viewTestResultBtn);
+    m_builder->get_widget("view_test_result_lbtn", m_viewTestResultBtn);
     if (m_viewTestResultBtn)
     {
-        m_viewTestResultBtn->set_sensitive(false);
         m_viewTestResultBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onViewTestResultClicked));
-    }
+    }    
 }
 
 MainWindow::~MainWindow()
 {
+}
+
+void MainWindow::on_window_shown()
+{
+    // Read training settings from file
+    std::ifstream settingsFile(SettingsFilePath);
+    std::string line;
+    bool isTrainingSettings = false;
+    if (settingsFile.is_open())
+    {
+        while (std::getline(settingsFile, line))
+        {
+            if (line == "[Training]")
+            {
+                isTrainingSettings = true;
+            }
+            else if (line.find('[') != std::string::npos)
+            {
+                isTrainingSettings = false; // New section means we passed the training settings
+            }
+
+            if (isTrainingSettings)
+            {
+                std::istringstream lineStream(line);
+                std::string key;
+
+                if (std::getline(lineStream, key, '='))
+                {
+                    std::string value;
+                    if (key == "model" && std::getline(lineStream, value))
+                    {
+                        if (m_modelComboBox)
+                        {
+                            m_modelComboBox->set_active_text(Glib::ustring(value));
+                        }
+                    }
+                    else if (key == "patchSize" && std::getline(lineStream, value))
+                    {
+                        if (m_patchSizeSb)
+                        {
+                            m_patchSizeSb->set_value(std::stod(value));
+                        }
+                    }
+                    else if (key == "batchSize" && std::getline(lineStream, value))
+                    {
+                        if (m_batchSizeSb)
+                        {
+                            m_batchSizeSb->set_value(std::stod(value));
+                        }
+                    }
+                    else if (key == "pyEnv" && std::getline(lineStream, value))
+                    {
+                        if (m_pyEnvEntry)
+                        {
+                            m_pyEnvEntry->set_text(Glib::ustring(value));
+                        }
+                        if (m_annotation_py_env_entry)
+                        {
+                            m_annotation_py_env_entry->set_text(Glib::ustring(value));
+                        }
+                    }
+                    else if (key == "epochs" && std::getline(lineStream, value))
+                    {
+                        if (m_epochsSb)
+                        {
+                            m_epochsSb->set_value(std::stod(value));
+                        }
+                    }
+                }
+            }
+        }
+        settingsFile.close();
+    }
 }
 
 void MainWindow::on_menu_toggled()
@@ -832,8 +828,9 @@ void MainWindow::onFilterImagesClicked()
     }
 
     // Command to execute the python script
-    std::string py_env = m_annotation_py_env_entry->get_text();
     std::string images_dir = m_filter_picker_fcb->get_filename();
+    std::string py_env = m_annotation_py_env_entry->get_text();
+    double pred_fidelity = m_annotation_pred_fidelity_sb->get_value();
 
     if (images_dir.empty() || py_env.empty())
     {
@@ -846,7 +843,9 @@ void MainWindow::onFilterImagesClicked()
         return;
     }
 
-    std::string cmd = py_env + " " + tempPyPath + std::string(" --images_dir ") + images_dir;
+    std::string cmd = py_env + " " + tempPyPath +
+                      std::string(" --images_dir ") + images_dir +
+                      std::string(" --threshold ") + std::to_string(pred_fidelity);
     
     // Run the command in a separate thread
     std::thread([this, cmd, tempPyPath]() {
@@ -918,23 +917,377 @@ void MainWindow::onOpenPreprocessingClicked()
     }
 }
 
+void MainWindow::onStartTrainingClicked()
+{
+    if (m_startTrainingBtn)
+    {
+        m_startTrainingBtn->set_sensitive(false); // Disable the button
+        m_startTrainingBtn->set_label("Training..."); // Change the button text
+    }
+
+    if (m_viewModelBtn)
+    {
+        m_viewModelBtn->set_sensitive(false);
+    }
+
+    std::string selectedModel = m_modelComboBox->get_active_text();
+    std::string pyEnv = m_pyEnvEntry->get_text();
+    int patchSize = m_patchSizeSb->get_value_as_int();
+    int batchSize = m_batchSizeSb->get_value_as_int();
+    int epochs = m_epochsSb->get_value_as_int();
+
+    // Validate training settings
+    if (selectedModel.empty() || pyEnv.empty() || patchSize <= 0 || batchSize <= 0 || epochs <= 0)
+    {
+        Gtk::MessageDialog dialog(*this, 
+                                "One or more training settings are not correctly configured.", 
+                                false,
+                                Gtk::MESSAGE_ERROR,
+                                Gtk::BUTTONS_OK,
+                                true);
+        dialog.run();
+
+        if (m_startTrainingBtn)
+        {
+            m_startTrainingBtn->set_sensitive(true);
+            m_startTrainingBtn->set_label("Start");
+        }
+        return;
+    }
+
+    // Save training settings for future use
+    if (FileUtils::createFile(SettingsFilePath))
+    {
+        // Read the existing content of the file
+        std::ifstream settingsFile(SettingsFilePath);
+        std::stringstream buffer;
+        if (settingsFile.is_open())
+        {
+            buffer << settingsFile.rdbuf();
+            settingsFile.close();
+        }
+        else
+        {
+            std::cerr << "Unable to open settings file: " << SettingsFilePath << std::endl;
+            m_logger->log("Unable to open settings file: " + SettingsFilePath, Logger::ERROR);
+        }
+        std::string content = buffer.str();
+
+        // Construct the new settings
+        std::stringstream sectionContent;
+        std::string sectionHeader = "[Training]";
+        sectionContent << sectionHeader << std::endl;
+        sectionContent << "model=" << selectedModel << std::endl;    
+        sectionContent << "patchSize=" << patchSize << std::endl;
+        sectionContent << "batchSize=" << batchSize << std::endl;
+        sectionContent << "pyEnv=" << pyEnv << std::endl;
+        sectionContent << "epochs=" << epochs << std::endl;
+        sectionContent << std::endl; // Add a blank line after the new section
+
+        // Override if the training section already exists
+        size_t sectionPos = content.find(sectionHeader);
+        bool sectionExists = (sectionPos != std::string::npos);
+
+        if (sectionExists)
+        {
+            // If the section exists, replace its contents
+            size_t nextSectionPos = content.find('[', sectionPos + 1); // Find the next section's starting position
+
+            // Replace the old section with the new one
+            if (nextSectionPos == std::string::npos)
+            {
+                // The section is the last one, so replace to the end of the file
+                content.replace(sectionPos, std::string::npos, sectionContent.str());
+            }
+            else
+            {
+                // Replace up to the next section
+                content.replace(sectionPos, nextSectionPos - sectionPos, sectionContent.str());
+            }
+        }
+        else
+        {
+            // If the section doesn't exist, append the new section at the end
+            content += sectionContent.str();
+        }
+
+        // Write the updated content back to the file (overwrite)
+        std::ofstream outFile(SettingsFilePath);
+        if (outFile.is_open())
+        {
+            outFile << content;
+            outFile.close();
+        }
+        else
+        {
+            std::cerr << "Unable to open settings file for writing." << std::endl;
+            m_logger->log("Unable to open settings file for writing: " + SettingsFilePath, Logger::ERROR);
+        }
+    }
+
+    // Get current time and format it as YYYYMMDD_HHMMSS
+    char timestamp[20];
+    std::time_t now = std::time(nullptr);
+    std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", std::localtime(&now));
+    std::string timestampStr(timestamp);
+
+    // Create a directory to save the model
+    std::string modelFolder = "model_" + timestampStr;
+    std::string userDocs = Glib::get_user_special_dir(Glib::USER_DIRECTORY_DOCUMENTS);
+    bool isModelDirCreated = FileUtils::createSubdirectory(userDocs, modelFolder);
+    if (!isModelDirCreated)
+    {
+        std::cerr << "Failed to create 'model' directory. Exiting function." << std::endl;
+
+        if (m_startTrainingBtn)
+        {
+            m_startTrainingBtn->set_sensitive(true);
+            m_startTrainingBtn->set_label("Start");
+        }
+    }
+    else
+    {
+        std::string modelPath = Glib::build_filename(userDocs, modelFolder);
+        std::filesystem::path trainImagesPath, trainMasksPath;
+        std::filesystem::path valImagesPath, valMasksPath;
+        std::filesystem::path testImagesPath, testMasksPath;
+
+        std::vector<std::string> selectedImages = FileUtils::getImageFiles(m_modelImagesPickerFcb->get_filename());
+        std::vector<std::string> selectedMasks = FileUtils::getImageFiles(m_modelMasksPickerFcb->get_filename(), true);
+
+        bool isInputDatasetValid = selectedImages.size() == selectedMasks.size() &&
+           FileUtils::checkImagesDimensions(selectedImages, patchSize, patchSize) &&
+           FileUtils::checkImagesDimensions(selectedMasks, patchSize, patchSize) &&
+           FileUtils::checkImagesHaveMasks(selectedImages, selectedMasks);
+
+        if (!isInputDatasetValid)
+        {
+            Gtk::MessageDialog dialog(*this, 
+                                    "Error occurs when loading the selected dataset for training.", 
+                                    false,
+                                    Gtk::MESSAGE_ERROR,
+                                    Gtk::BUTTONS_OK,
+                                    true);
+            dialog.run();
+            
+            if (m_startTrainingBtn)
+            {
+                m_startTrainingBtn->set_sensitive(true);
+                m_startTrainingBtn->set_label("Start");
+            }
+        }
+        else if (!FileUtils::createTrainingDatasetDirs(modelPath, trainImagesPath, trainMasksPath, valImagesPath, valMasksPath, testImagesPath, testMasksPath))
+        {
+            Gtk::MessageDialog dialog(*this, 
+                                    "Error occurs when creating training dataset directories.", 
+                                    false,
+                                    Gtk::MESSAGE_ERROR,
+                                    Gtk::BUTTONS_OK,
+                                    true);
+            dialog.run();
+
+            if (m_startTrainingBtn)
+            {
+                m_startTrainingBtn->set_sensitive(true);
+                m_startTrainingBtn->set_label("Start");
+            }
+        }
+        else if (!FileUtils::splitAndCopyImagesAndMasks(selectedImages, selectedMasks, modelPath, 0.8, 0.1, 0.1))
+        {
+            Gtk::MessageDialog dialog(*this, 
+                                    "Error occurs when preparing training dataset.", 
+                                    false,
+                                    Gtk::MESSAGE_ERROR,
+                                    Gtk::BUTTONS_OK,
+                                    true);
+            dialog.run();
+
+            if (m_startTrainingBtn)
+            {
+                m_startTrainingBtn->set_sensitive(true);
+                m_startTrainingBtn->set_label("Start");
+            }
+        }
+        else
+        {
+            // Set test imags and masks for testing the model
+            m_test_images_dir_lbl->set_text(testImagesPath.string());
+            m_test_masks_dir_lbl->set_text(testMasksPath.string());
+
+            // Write the Python script to the temp file
+            std::string tempPyPath = "/tmp/deep_scan/temp_unet.py";
+            if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
+            {
+                std::cerr << "Failed to create tmp directory.";
+                m_logger->log("Unable to create tmp directory: /tmp/deep_scan", Logger::ERROR);
+
+                if (m_startTrainingBtn)
+                {
+                    m_startTrainingBtn->set_sensitive(true);
+                    m_startTrainingBtn->set_label("Start");
+                }
+
+                return;
+            }
+            else
+            {
+                std::ofstream tempUnetPyFile(tempPyPath);
+                if (tempUnetPyFile.is_open())
+                {
+                    if (selectedModel == "unet_16-256")
+                    {
+                        tempUnetPyFile << unet_16to256;
+                    }
+                    else if (selectedModel == "unet_16-512")
+                    {
+                        tempUnetPyFile << unet_16to512;
+                    }
+                    tempUnetPyFile.close();
+                }
+                else
+                {
+                    std::cerr << "Failed to open temp_unet.py for writing" << std::endl;
+                    m_logger->log("Unable to open temp_unet.py for writing", Logger::ERROR);
+
+                    if (m_startTrainingBtn)
+                    {
+                        m_startTrainingBtn->set_sensitive(true);
+                        m_startTrainingBtn->set_label("Start");
+                    }
+
+                    return;
+                }
+            }
+
+            // Command to execute the python script
+            std::string cmd = pyEnv + " " + tempPyPath +
+                              std::string(" --model_path ") + Glib::build_filename(modelPath, "ds.keras") +
+                              std::string(" --train_images_path ") + trainImagesPath.string() +
+                              std::string(" --train_masks_path ") + trainMasksPath.string() +
+                              std::string(" --val_images_path ") + valImagesPath.string() +
+                              std::string(" --val_masks_path ") + valMasksPath.string() +
+                              std::string(" --patch_size ") + std::to_string(patchSize) +
+                              std::string(" --batch_size ") + std::to_string(batchSize) +
+                              std::string(" --epochs ") + std::to_string(epochs);
+
+            // Run the command in a separate thread
+            std::thread([this, cmd, modelPath, tempPyPath]() {
+                // Open a pipe to the command
+                FILE *pipe = popen(cmd.c_str(), "r");
+                if (!pipe)
+                {
+                    std::cerr << "Failed to open a pipe and run command\n";
+                    m_logger->log("Error to open a pipe and run command: " + cmd, Logger::ERROR);
+                    return;
+                }
+
+                // Open log file for writing
+                std::string logFilePath = Glib::build_filename(modelPath, "ds.log");
+                std::ofstream logFile(logFilePath, std::ios::out | std::ios::app); // Append mode
+                if (logFile.is_open()) 
+                {
+                    std::string cmdForLogging = cmd;
+                    // Find and replace tempPyPath with "ds.py" to hide the actual model py script
+                    size_t pos = cmdForLogging.find(tempPyPath);
+                    if (pos != std::string::npos) 
+                    {
+                        cmdForLogging.replace(pos, tempPyPath.length(), "ds.py");
+                    }
+                    logFile << cmdForLogging << std::endl;
+                }
+
+                // Buffer to hold each line of output
+                std::array<char, 256> buffer;
+
+                // Read the output from the pipe line by line
+                while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
+                {
+                    std::cout << buffer.data(); // Print each line to the console
+                    if (logFile.is_open()) 
+                    {
+                        logFile << buffer.data(); // Write each line to the log file
+                    }
+                }
+
+                // Close the log file
+                if (logFile.is_open())
+                {
+                    logFile.close();
+                }
+
+                // Close the pipe
+                int returnCode = pclose(pipe);
+                if (returnCode != 0)
+                {
+                    std::cerr << "Command failed with return code " << returnCode << std::endl;
+                    m_logger->log("Error to close the pipe: " + std::to_string(returnCode), Logger::ERROR);
+                }
+
+                // Optionally handle the result here or update the UI (make sure UI updates happen on the main thread)
+                std::cout << "Python script finished execution." << std::endl;
+
+                // Delete the tmp script after execution
+                std::remove(tempPyPath.c_str());
+
+                // Re-enable the button and reset the text back to "Start" on the main thread
+                Glib::signal_idle().connect_once([this, modelPath]() {
+                    if (m_startTrainingBtn)
+                    {
+                        m_startTrainingBtn->set_sensitive(true);
+                        m_startTrainingBtn->set_label("Start");
+                    }
+                    if (m_viewModelBtn)
+                    {
+                        m_viewModelBtn->set_uri(modelPath);
+                        m_viewModelBtn->set_sensitive(true);
+                    }
+                });
+            }).detach(); // Detach the thread so it runs independently
+        }
+    }
+}
+
+void MainWindow::onViewModelClicked()
+{
+    std::string modelPath = m_viewModelBtn->get_uri();
+
+    if (modelPath.empty())
+    {
+        return;
+    }
+
+    std::string command = "xdg-open " + modelPath;
+    if (std::system(command.c_str()) != 0)
+    {
+        std::cerr << "Failed to open directory." << std::endl;
+        m_logger->log("Error to open the directory via command: " + command, Logger::ERROR);
+    }
+}
+
 void MainWindow::onTestModelClicked()
 {
-    m_testModelBtn->set_sensitive(false);
-    m_testModelBtn->set_label("Testing...");
+    if (m_testModelBtn)
+    {
+        m_testModelBtn->set_sensitive(false);
+        m_testModelBtn->set_label("Testing...");
+    }
 
     if (m_viewTestResultBtn)
     {
         m_viewTestResultBtn->set_sensitive(false);
     }
 
-    auto modelPath = m_modelPickerFcb->get_filename();
-    auto testImages = m_testImagesPickerFcb->get_filename();
-    auto testMasks = m_testMasksPickerFcb->get_filename();
-    auto pyEnv = m_pyEnvEntry->get_text();
-    auto patchSize = static_cast<int>(m_patchSizeSb->get_value());
-    auto confidenceThreshold =  m_confidenceThresholdSb->get_value();
-
+    double predFidelity = m_predFidelitySb->get_value();
+    if (predFidelity <= 0)
+    {
+        if (m_testModelBtn)
+        {
+            m_testModelBtn->set_sensitive(true);
+            m_testModelBtn->set_label("Test");
+        }
+        return;
+    }
+    
     // Write the Python script to the temp file
     std::string tempPyPath = "/tmp/deep_scan/temp_unet_test.py";
     if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
@@ -972,17 +1325,24 @@ void MainWindow::onTestModelClicked()
         }
     }
 
+    std::string pyEnv = m_pyEnvEntry->get_text();
+    std::string modelPath = m_viewModelBtn->get_uri();
+    std::string testImageDir = m_test_images_dir_lbl->get_text();
+    std::string testMasksDir = m_test_masks_dir_lbl->get_text();
+    int patchSize = m_patchSizeSb->get_value_as_int();
+    int batchSize = m_batchSizeSb->get_value_as_int();
+
     // Command to execute the python script
     std::string cmd = pyEnv + " " + tempPyPath +
-                        std::string(" --model_path ") + modelPath +
-                        std::string(" --test_images_path ") + testImages +
-                        std::string(" --test_masks_path ") + testMasks +
+                        std::string(" --model_path ") + Glib::build_filename(modelPath, "ds.keras") +
+                        std::string(" --test_images_path ") + testImageDir +
+                        std::string(" --test_masks_path ") + testMasksDir +
                         std::string(" --patch_size ") + std::to_string(patchSize) +
-                        std::string(" --batch_size 16") +
-                        std::string(" --threshold ") + std::to_string(confidenceThreshold);
+                        std::string(" --batch_size ") + std::to_string(batchSize) +
+                        std::string(" --threshold ") + std::to_string(predFidelity);
 
     // Run the command in a separate thread
-    std::thread([this, cmd, tempPyPath, modelPath]() {
+    std::thread([this, cmd, modelPath, tempPyPath]() {
         // Open a pipe to the command
         FILE *pipe = popen(cmd.c_str(), "r");
         if (!pipe)
@@ -992,9 +1352,7 @@ void MainWindow::onTestModelClicked()
         }
 
         // Open log file for writing
-        std::filesystem::path path(modelPath);
-        auto modelDir = path.parent_path().string();
-        std::string logFilePath = Glib::build_filename(modelDir, "ds.log");
+        std::string logFilePath = Glib::build_filename(modelPath, "ds.log");
         std::ofstream logFile(logFilePath, std::ios::out | std::ios::app); // Append mode
         if (logFile.is_open())
         {
@@ -1054,17 +1412,15 @@ void MainWindow::onTestModelClicked()
 
 void MainWindow::onViewTestResultClicked()
 {
-    auto modelPath = m_modelPickerFcb->get_filename();
+    std::string modelPath = m_viewModelBtn->get_uri();
 
     if (modelPath.empty())
     {
         return;
     }
 
-    std::filesystem::path path(modelPath);
-    auto modelDir = path.parent_path().string();
-    std::string command = "xdg-open " + Glib::build_filename(modelDir, "test_result");
-    if (std::system(command.c_str()) != 0)
+    std::string command = "xdg-open " + Glib::build_filename(modelPath, "test_result");
+    if (std::system(command.c_str()) != 0) 
     {
         std::cerr << "Failed to open directory." << std::endl;
         m_logger->log("Error to open the directory via command: " + command, Logger::ERROR);
