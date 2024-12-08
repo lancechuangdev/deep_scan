@@ -180,6 +180,17 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
         });
     }
 
+    // Data Augmentation
+    m_builder->get_widget("augmentation_picker_fcb", m_augmentation_picker_fcb);
+    m_builder->get_widget("augmentation_number_entry", m_augmentation_number_entry);
+    m_builder->get_widget("augmentation_patch_size_sb", m_augmentation_patch_size_sb);
+    m_builder->get_widget("augmentation_py_env_entry", m_augmentation_py_env_entry);
+    m_builder->get_widget("augment_btn", m_augment_btn);
+    if (m_augment_btn)
+    {
+        m_augment_btn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onAugmentClicked));
+    }
+
     // Training model
     m_builder->get_widget("train_model_images_picker_fcb", m_modelImagesPickerFcb);
     m_builder->get_widget("train_model_masks_picker_fcb", m_modelMasksPickerFcb);
@@ -212,7 +223,7 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     if (m_viewTestResultBtn)
     {
         m_viewTestResultBtn->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::onViewTestResultClicked));
-    }    
+    }
 }
 
 MainWindow::~MainWindow()
@@ -276,6 +287,10 @@ void MainWindow::on_window_shown()
                         if (m_annotation_py_env_entry)
                         {
                             m_annotation_py_env_entry->set_text(Glib::ustring(value));
+                        }
+                        if (m_augmentation_py_env_entry)
+                        {
+                            m_augmentation_py_env_entry->set_text(Glib::ustring(value));
                         }
                     }
                     else if (key == "epochs" && std::getline(lineStream, value))
@@ -915,6 +930,93 @@ void MainWindow::onOpenPreprocessingClicked()
         PreprocessWindow->setImagePreprocessingPath(m_preprocessImagePath);
         PreprocessWindow->present(); // Show the window
     }
+}
+
+void MainWindow::onAugmentClicked()
+{
+    m_augment_btn->set_sensitive(false); // Disable the button
+    m_augment_btn->set_label("Augmenting...");
+
+    // Write the Python script to the temp file
+    std::string tempPyPath = "/tmp/deep_scan/temp_augment.py";
+    if (!FileUtils::createSubdirectory("/tmp", "deep_scan"))
+    {
+        std::cerr << "Failed to create tmp directory.";
+        m_logger->log("Unable to create tmp directory: /tmp/deep_scan", Logger::ERROR);
+
+        m_augment_btn->set_sensitive(true);
+        m_augment_btn->set_label("Augment");
+
+        return;
+    }
+    else
+    {
+        std::ofstream tempUnetPyFile(tempPyPath);
+        if (tempUnetPyFile.is_open())
+        {
+            tempUnetPyFile << data_augment;
+            tempUnetPyFile.close();
+        }
+        else
+        {
+            std::cerr << "Failed to open temp_unet.py for writing" << std::endl;
+            m_logger->log("Unable to open temp_unet.py for writing", Logger::ERROR);
+
+            m_augment_btn->set_sensitive(true);
+            m_augment_btn->set_label("Augment");
+
+            return;
+        }
+    }
+
+    std::string py_env = m_augmentation_py_env_entry->get_text();
+
+    // Command to execute the python script
+    std::string cmd = py_env + " " + tempPyPath +
+                        std::string(" --source_dir ") + m_augmentation_picker_fcb->get_filename() +
+                        std::string(" --num_augmentations ") + m_augmentation_number_entry->get_text() +
+                        std::string(" --patch_size ") + std::to_string(m_augmentation_patch_size_sb->get_value_as_int());
+
+    // Run the command in a separate thread
+    std::thread([this, cmd, tempPyPath]() {
+        // Open a pipe to the command
+        FILE *pipe = popen(cmd.c_str(), "r");
+        if (!pipe)
+        {
+            std::cerr << "Failed to open a pipe and run command\n";
+            m_logger->log("Error to open a pipe and run command: " + cmd, Logger::ERROR);
+            return;
+        }
+
+        // Buffer to hold each line of output
+        std::array<char, 256> buffer;
+
+        // Read the output from the pipe line by line
+        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
+        {
+            std::cout << buffer.data(); // Print each line to the console
+        }
+
+        // Close the pipe
+        int returnCode = pclose(pipe);
+        if (returnCode != 0)
+        {
+            std::cerr << "Command failed with return code " << returnCode << std::endl;
+            m_logger->log("Error to close the pipe: " + std::to_string(returnCode), Logger::ERROR);
+        }
+
+        // Optionally handle the result here or update the UI (make sure UI updates happen on the main thread)
+        std::cout << "Python script finished execution." << std::endl;
+
+        // Delete the tmp script after execution
+        std::remove(tempPyPath.c_str());
+
+        // Re-enable the button and reset the text back to "Start" on the main thread
+        Glib::signal_idle().connect_once([this]() {
+            m_augment_btn->set_sensitive(true);
+            m_augment_btn->set_label("Augment");
+        });
+    }).detach(); // Detach the thread so it runs independently
 }
 
 void MainWindow::onStartTrainingClicked()

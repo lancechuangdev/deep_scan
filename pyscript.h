@@ -7,5 +7,6 @@ extern const std::string unet_16to256;
 extern const std::string unet_16to512;
 extern const std::string unet_test_py;
 extern const std::string mobilenet_v2_test;
+extern const std::string data_augment;
 
 #endif // PY_SCRIPT_H

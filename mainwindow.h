@@ -52,6 +52,12 @@ protected:
     Gtk::FileChooserButton *m_modelMasksPickerFcb;
     Gtk::SpinButton *m_captureRateSb;
     
+    Gtk::FileChooserButton *m_augmentation_picker_fcb;
+    Gtk::Entry *m_augmentation_number_entry;
+    Gtk::SpinButton *m_augmentation_patch_size_sb;
+    Gtk::Entry *m_augmentation_py_env_entry;
+    Gtk::Button *m_augment_btn;
+
     Gtk::ComboBoxText *m_modelComboBox;
     Gtk::SpinButton *m_patchSizeSb;
     Gtk::SpinButton *m_batchSizeSb;
@@ -73,6 +79,7 @@ protected:
     void onFilterImagesClicked();
     void onOpenDrawingClicked();
     void onOpenPreprocessingClicked();
+    void onAugmentClicked();
     void onStartTrainingClicked();
     void onViewModelClicked();
     void onTestModelClicked();
