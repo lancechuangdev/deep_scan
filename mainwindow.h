@@ -52,7 +52,8 @@ protected:
     Gtk::FileChooserButton *m_modelMasksPickerFcb;
     Gtk::SpinButton *m_captureRateSb;
     
-    Gtk::FileChooserButton *m_augmentation_picker_fcb;
+    Gtk::FileChooserButton *m_augmentation_files_picker_fcb;
+    Gtk::FileChooserButton *m_augmentation_patches_picker_fcb;
     Gtk::Entry *m_augmentation_number_entry;
     Gtk::SpinButton *m_augmentation_patch_size_sb;
     Gtk::Entry *m_augmentation_py_env_entry;

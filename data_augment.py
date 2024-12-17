@@ -5,6 +5,9 @@ import cv2
 import numpy as np
 import albumentations as A
 
+image_extensions = (".bmp", ".png", ".jpeg", ".jpg")
+mask_extensions = ("_mask.bmp", "_mask.png", "_mask.jpeg", "_mask.jpg")
+
 def organize_files(source_dir, images_dir, masks_dir):
     """
     Organizes files in the source directory into 'images' and 'masks' folders.
@@ -23,17 +26,17 @@ def organize_files(source_dir, images_dir, masks_dir):
         
         # Check if it's a file
         if os.path.isfile(file_path):
-            if file_name.endswith("_mask.bmp"):
+            if file_name.endswith(mask_extensions):
                 # Move mask files to the 'masks' folder and rename them
                 new_name = file_name.replace("_mask", "")
                 shutil.move(file_path, os.path.join(masks_dir, new_name))
-            elif file_name.endswith(".bmp"):
+            elif file_name.endswith(image_extensions):
                 # Move regular images to the 'images' folder
                 shutil.move(file_path, os.path.join(images_dir, file_name))
     
     print(f"Files organized successfully into '{images_dir}' and '{masks_dir}'.")
 
-def load_image_mask_pairs(images_dir, masks_dir):
+def load_image_mask_pairs(images_dir, masks_dir, resize_to=None):
     """
     Load paired images and masks from the given directories and return image-mask pairs with filenames.
 
@@ -61,9 +64,15 @@ def load_image_mask_pairs(images_dir, masks_dir):
             mask = cv2.imread(mask_path)
 
             if image is not None and mask is not None:
+                # Resize image and mask if specified
+                if resize_to is not None:
+                    image = cv2.resize(image, resize_to, interpolation=cv2.INTER_LINEAR)
+                    mask = cv2.resize(mask, resize_to, interpolation=cv2.INTER_NEAREST)
+
                 # Store the pair along with the filename (without extension)
                 filename = os.path.splitext(image_file)[0]  # Extract base filename without extension
                 image_mask_pairs.append((image, mask, filename))
+                print(f"Loaded image and mask: {image_path}, {mask_path}")
             else:
                 print(f"Could not load image or mask: {image_path}, {mask_path}")
         else:
@@ -85,19 +94,19 @@ def extract_patches(image, patch_size, stride):
     """
     height, width, _ = image.shape
     patches = []
-    print(f"height: {height}, width: {width}")
+    # print(f"height: {height}, width: {width}")
     
     # Loop through rows
     y = 0
     while y < height:
-        print(f"y: {y}")
+        # print(f"y: {y}")
         # Break out of the loop for the last row patch
         if y + patch_size >= height:
             break
         # Loop through columns
         x = 0
         while x < width:
-            print(f"x: {x}")
+            # print(f"x: {x}")
             # Break out of the loop for the last column patch
             if x + patch_size >= width:
                 break  
@@ -129,23 +138,33 @@ def save_patches(patches, output_dir, prefix="patch"):
         # OpenCV assumes the array is in BGR format for color images or grayscale for single channel
         cv2.imwrite(filename, patch)
 
-def augment_image_and_mask(image, mask, patch_size=(512, 512)):
+def augment_image_and_mask(image, mask, patch_size=(512, 512), apply_shift_scale_rotate=True):    
+    # Define the list of transformations
+    transforms = []
+
+    # Conditionally add ShiftScaleRotate
+    if apply_shift_scale_rotate:
+        transforms.append(
+            A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.1, rotate_limit=5, border_mode=1)
+        )
+
+    # Add the rest of the transformations
+    transforms.extend([
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
+
+        # Brightness and Contrast (applies only to the image)
+        A.OneOf(
+            [
+                A.RandomBrightnessContrast(brightness_limit=(-0.15, 0.05), contrast_limit=0.15, p=0.5),
+            ],
+            p=0.5,  # Apply brightness/contrast with a probability
+        ),
+    ])
+
     # Define augmentation pipeline
     transform = A.Compose(
-        [
-            # Spatial Transformations (applies to both image and mask)
-            A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.1, rotate_limit=5, border_mode=1),
-            A.HorizontalFlip(p=0.5),
-            A.VerticalFlip(p=0.5),
-
-            # Brightness and Contrast (applies only to the image)
-            A.OneOf(
-                [
-                    A.RandomBrightnessContrast(brightness_limit=(-0.15, 0.05), contrast_limit=0.15, p=0.5),
-                ],
-                p=0.5,  # Apply brightness/contrast with a probability
-            ),
-        ],
+        transforms,
         additional_targets={"mask": "mask"},  # Ensure the mask is treated separately
     )
 
@@ -187,7 +206,7 @@ def save_augmented_images_and_masks(augmented_results, images_output_dir, masks_
         cv2.imwrite(image_filename, augmented_image)
         cv2.imwrite(mask_filename, augmented_mask)
 
-        print(f"Saved: {image_filename}, {mask_filename}")
+        print(f"Saved augmented: {image_filename}, {mask_filename}")
 
 def move_images_based_on_mask(mask_path, image_path, mask_filename, image_filename, normal_dir, anomaly_dir):
     """
@@ -204,8 +223,7 @@ def move_images_based_on_mask(mask_path, image_path, mask_filename, image_filena
     # Load the mask (grayscale)
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
 
-    # Check if there are any white pixels in the mask (indicating a defect)
-    if cv2.countNonZero(mask) == 0 or np.unique(mask).size == 1:
+    if cv2.countNonZero(mask) == 0:
         # No defects, move to normal folder
         normal_mask_path = os.path.join(normal_dir, 'masks', mask_filename)
         normal_image_path = os.path.join(normal_dir, 'images', image_filename)
@@ -266,66 +284,122 @@ def process_augmented_images_and_masks(augmented_masks_dir, augmented_images_dir
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Train the UNet model on images and masks.')
-    parser.add_argument('--source_dir', type=str, required=True, help=' Path to the directory containing the original images and masks.')
+    
+    # Create a mutually exclusive group to ensure only one of source_dir or patches_source_dir is provided
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--source_dir", type=str, default="", help="Path to the directory containing the original images and masks.")
+    group.add_argument("--patches_source_dir", type=str, default="", help="Path to the directory containing the patched images and masks.")
+
+    # parser.add_argument('--source_dir', type=str, default="", help=' Path to the directory containing the original images and masks.')
+    # parser.add_argument('--patches_source_dir', type=str, default="", help=' Path to the directory containing the patched images and masks.')
     parser.add_argument('--num_augmentations', type=int, required=True, help=' The number of augmented images for a single patch.')
     parser.add_argument('--patch_size', type=int, required=True, help=' The patch size of each augmented image.')
 
     args = parser.parse_args()
     source_dir = args.source_dir
+    patches_source_dir = args.patches_source_dir
     num_augmentations = args.num_augmentations
     patch_size = args.patch_size
     
-    images_dir = os.path.join(source_dir, "images")
-    masks_dir = os.path.join(source_dir, "masks")
+    if os.path.exists(source_dir):
+        images_dir = os.path.join(source_dir, "1_images")
+        masks_dir = os.path.join(source_dir, "1_masks")
 
-    patches_output_dir = os.path.join(source_dir, "patches_output")
-    masks_output_dir = os.path.join(source_dir, "masks_output")
+        patches_output_dir = os.path.join(source_dir, "2_patches_output")
+        masks_output_dir = os.path.join(source_dir, "2_masks_output")
 
-    augmented_images_dir = os.path.join(source_dir, "augmented_images")
-    augmented_masks_dir = os.path.join(source_dir, "augmented_masks")
+        augmented_images_dir = os.path.join(source_dir, "3_augmented_images")
+        augmented_masks_dir = os.path.join(source_dir, "3_augmented_masks")
 
-    normal_dir = os.path.join(source_dir, "normal")
-    anomaly_dir = os.path.join(source_dir, "anomaly")
+        normal_dir = os.path.join(source_dir, "4_normal")
+        anomaly_dir = os.path.join(source_dir, "4_anomaly")
 
-    # Organizes files in the source directory into 'images' and 'masks' folders.
-    organize_files(source_dir, images_dir, masks_dir)
+        # Organizes files in the source directory into 'images' and 'masks' folders.
+        organize_files(source_dir, images_dir, masks_dir)
 
-    # Load paired data
-    image_mask_pairs = load_image_mask_pairs(images_dir, masks_dir)
+        # Load paired data
+        image_mask_pairs = load_image_mask_pairs(images_dir, masks_dir)
 
-    # Patching
-    for i, (image, mask, filename) in enumerate(image_mask_pairs):
-        print(f"Pair {i}: Filename: {filename}, Image shape: {image.shape}, Mask shape: {mask.shape}")
-        
-        # Extract patches
-        expanded_patch_size = patch_size * 2
-        stride = 128
-        patches = extract_patches(image, patch_size=expanded_patch_size, stride=stride)
-        masks = extract_patches(mask, patch_size=expanded_patch_size, stride=stride)
+        # Patching
+        for i, (image, mask, filename) in enumerate(image_mask_pairs):
+            print(f"Pair {i}: Filename: {filename}, Image shape: {image.shape}, Mask shape: {mask.shape}")
+            
+            # Extract patches
+            expanded_patch_size = patch_size * 2
+            stride = 128
+            patches = extract_patches(image, patch_size=expanded_patch_size, stride=stride)
+            masks = extract_patches(mask, patch_size=expanded_patch_size, stride=stride)
 
-        # Save patches
-        save_patches(patches, patches_output_dir, prefix=f"{filename}_patch")
-        save_patches(masks, masks_output_dir, prefix=f"{filename}_patch")
+            # Save patches
+            save_patches(patches, patches_output_dir, prefix=f"{filename}_patch")
+            save_patches(masks, masks_output_dir, prefix=f"{filename}_patch")
 
-    # Load paired patch data
-    image_mask_patches_pairs = load_image_mask_pairs(patches_output_dir, masks_output_dir)
-    print(f"Loaded {len(image_mask_patches_pairs)} image-mask-patch pairs.")
+        # Load paired patch data
+        image_mask_patches_pairs = load_image_mask_pairs(patches_output_dir, masks_output_dir)
+        print(f"Loaded {len(image_mask_patches_pairs)} image-mask-patch pairs.")
 
-    # Augmentation
-    for i, (image, mask, filename) in enumerate(image_mask_patches_pairs):    
-        # Generate augmented images and masks
-        augmented_results = [
-            augment_image_and_mask(image, mask, (patch_size, patch_size)) for _ in range(num_augmentations)
-        ]
-        
-        # Define the output directory and base filename (you can customize these)
-        base_filename = filename  # This will be used to generate filenames for the augmented images
-        
-        # Save the augmented images and masks
-        save_augmented_images_and_masks(augmented_results, augmented_images_dir, augmented_masks_dir, base_filename)
+        # Augmentation
+        for i, (image, mask, filename) in enumerate(image_mask_patches_pairs):
+            augmented_results = []
 
-    # Process and move the normal or anomaly folders
-    process_augmented_images_and_masks(augmented_masks_dir, augmented_images_dir, normal_dir, anomaly_dir)
+            gray_mask = cv2.cvtColor(mask, cv2.COLOR_RGB2GRAY) if mask.ndim == 3 else mask
+            if cv2.countNonZero(gray_mask) == 0:
+                # No defects, don't augment
+                augmented_results.append((image, mask))
+            else:
+                # Generate augmented images and masks
+                augmented_results = [
+                    augment_image_and_mask(image, mask, (patch_size, patch_size)) for _ in range(num_augmentations)
+                ]
+            
+            # Define the output directory and base filename (you can customize these)
+            base_filename = filename  # This will be used to generate filenames for the augmented images
+            
+            # Save the augmented images and masks
+            save_augmented_images_and_masks(augmented_results, augmented_images_dir, augmented_masks_dir, base_filename)
+
+        # Process and move the normal or anomaly folders
+        process_augmented_images_and_masks(augmented_masks_dir, augmented_images_dir, normal_dir, anomaly_dir)
+
+    if os.path.exists(patches_source_dir):
+        images_dir = os.path.join(patches_source_dir, "1_images")
+        masks_dir = os.path.join(patches_source_dir, "1_masks")
+
+        augmented_images_dir = os.path.join(patches_source_dir, "2_augmented_images")
+        augmented_masks_dir = os.path.join(patches_source_dir, "2_augmented_masks")
+
+        normal_dir = os.path.join(patches_source_dir, "3_normal")
+        anomaly_dir = os.path.join(patches_source_dir, "3_anomaly")
+
+        # Organizes files in the source directory into 'images' and 'masks' folders.
+        organize_files(patches_source_dir, images_dir, masks_dir)
+
+        # Load paired data and resize
+        resize_to = (patch_size, patch_size)
+        image_mask_pairs = load_image_mask_pairs(images_dir, masks_dir, resize_to)
+
+        # Augmentation
+        for i, (image, mask, filename) in enumerate(image_mask_pairs):
+            augmented_results = []
+
+            gray_mask = cv2.cvtColor(mask, cv2.COLOR_RGB2GRAY) if mask.ndim == 3 else mask
+            if cv2.countNonZero(gray_mask) == 0:
+                # No defects, don't augment
+                augmented_results.append((image, mask))
+            else:
+                # Generate augmented images and masks
+                augmented_results = [
+                    augment_image_and_mask(image, mask, (patch_size, patch_size), False) for _ in range(num_augmentations)
+                ]
+            
+            # Define the output directory and base filename (you can customize these)
+            base_filename = filename  # This will be used to generate filenames for the augmented images
+            
+            # Save the augmented images and masks
+            save_augmented_images_and_masks(augmented_results, augmented_images_dir, augmented_masks_dir, base_filename)
+
+        # Process and move the normal or anomaly folders
+        process_augmented_images_and_masks(augmented_masks_dir, augmented_images_dir, normal_dir, anomaly_dir)
 
 if __name__ == "__main__":
     main()

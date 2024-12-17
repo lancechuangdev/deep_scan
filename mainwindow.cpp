@@ -181,7 +181,8 @@ MainWindow::MainWindow(BaseObjectType *obj, Glib::RefPtr<Gtk::Builder> const &re
     }
 
     // Data Augmentation
-    m_builder->get_widget("augmentation_picker_fcb", m_augmentation_picker_fcb);
+    m_builder->get_widget("augmentation_files_picker_fcb", m_augmentation_files_picker_fcb);
+    m_builder->get_widget("augmentation_patches_picker_fcb", m_augmentation_patches_picker_fcb);
     m_builder->get_widget("augmentation_number_entry", m_augmentation_number_entry);
     m_builder->get_widget("augmentation_patch_size_sb", m_augmentation_patch_size_sb);
     m_builder->get_widget("augmentation_py_env_entry", m_augmentation_py_env_entry);
@@ -973,9 +974,17 @@ void MainWindow::onAugmentClicked()
 
     // Command to execute the python script
     std::string cmd = py_env + " " + tempPyPath +
-                        std::string(" --source_dir ") + m_augmentation_picker_fcb->get_filename() +
                         std::string(" --num_augmentations ") + m_augmentation_number_entry->get_text() +
                         std::string(" --patch_size ") + std::to_string(m_augmentation_patch_size_sb->get_value_as_int());
+
+    if (m_augmentation_files_picker_fcb->get_filename() != "")
+    {
+        cmd += std::string(" --source_dir ") + m_augmentation_files_picker_fcb->get_filename();
+    }
+    else if (m_augmentation_patches_picker_fcb->get_filename() != "")
+    {
+        cmd += std::string(" --patches_source_dir ") + m_augmentation_patches_picker_fcb->get_filename();
+    }
 
     // Run the command in a separate thread
     std::thread([this, cmd, tempPyPath]() {
