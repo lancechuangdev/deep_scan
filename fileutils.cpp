@@ -40,7 +40,7 @@ std::string FileUtils::getGladeFilePath()
     }
 }
 
-std::vector<std::string> FileUtils::getImageFiles(const std::string &folder_path, bool get_masks)
+std::vector<std::string> FileUtils::getImageFiles(const std::string &folder_path)
 {
     std::vector<std::string> files;
     Glib::Dir dir(folder_path);
@@ -66,17 +66,7 @@ std::vector<std::string> FileUtils::getImageFiles(const std::string &folder_path
             // Check if the extension matches a supported image format
             if (std::find(image_extensions.begin(), image_extensions.end(), extension) != image_extensions.end())
             {
-                // Determine if we are getting masks or images based on the flag
-                bool is_mask = basename.find("_mask") != std::string::npos;
-
-                if (get_masks && is_mask)  // Return only masks if get_masks is true
-                {
-                    files.push_back(file_path);
-                }
-                else if (!get_masks && !is_mask)  // Return only images if get_masks is false
-                {
-                    files.push_back(file_path);
-                }
+                files.push_back(file_path);
             }
         }
     }
