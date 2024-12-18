@@ -3,7 +3,7 @@
 std::string FileUtils::getCssFilePath()
 {
     const std::filesystem::path dev_path = "../style.css";
-    const std::filesystem::path install_path = "/usr/local/share/eagle_eye/style.css";
+    const std::filesystem::path install_path = "/usr/local/share/deep-scan/style.css";
 
     if (std::filesystem::exists(dev_path))
     {
@@ -283,8 +283,11 @@ std::string FileUtils::replaceExtension(const std::string &filename, const std::
     return filename.substr(0, dotPos) + "." + newExtension;
 }
 
-bool FileUtils::checkImagesDimensions(std::vector<std::string> images, int width, int height)
+bool FileUtils::checkImagesAspectRatios(const std::vector<std::string> &images, int targetWidth, int targetHeight)
 {
+    // Calculate the target aspect ratio
+    double targetAspectRatio = static_cast<double>(targetWidth) / targetHeight;
+
     for (const std::string &imagePath : images)
     {
         try
@@ -296,12 +299,16 @@ bool FileUtils::checkImagesDimensions(std::vector<std::string> images, int width
             int actualWidth = pixbuf->get_width();
             int actualHeight = pixbuf->get_height();
 
-            // Check if the width and height are 512
-            if (actualWidth != width || actualHeight != height)
+            // Calculate the actual aspect ratio
+            double actualAspectRatio = static_cast<double>(actualWidth) / actualHeight;
+
+            // Check if the aspect ratios are different (allowing for small floating-point precision differences)
+            if (std::abs(actualAspectRatio - targetAspectRatio) > 1e-6)
             {
-                std::cerr << "Image " << imagePath << " has incorrect dimensions: "
-                          << width << "x" << height << std::endl;
-                return false; // Return false if any image does not match
+                std::cerr << "Image " << imagePath << " has an incorrect aspect ratio: "
+                          << actualWidth << "x" << actualHeight
+                          << " (expected aspect ratio: " << targetAspectRatio << ")" << std::endl;
+                return false; // Return false if any image does not match the aspect ratio
             }
         }
         catch (const Glib::FileError &e)
@@ -328,20 +335,21 @@ bool FileUtils::checkImagesHaveMasks(std::vector<std::string> images, std::vecto
         std::string imageStem = imageFile.stem();           // Filename without extension
         std::string imageExtension = imageFile.extension(); // Get the extension (e.g., .png)
 
-        // Generate the corresponding mask filename
-        std::string expectedMask = imageStem + "_mask" + imageExtension;
+        // Generate possible mask filenames
+        std::string expectedMask1 = imageStem + imageExtension;       // Same name as image
+        std::string expectedMask2 = imageStem + "_mask" + imageExtension; // With _mask suffix
 
         // Check if the mask exists in m_selectedMasks
         auto it = std::find_if(masks.begin(), masks.end(),
-                               [&expectedMask](const std::string &maskPath)
+                               [&expectedMask1, &expectedMask2](const std::string &maskPath)
                                {
-                                   return std::filesystem::path(maskPath).filename() == expectedMask;
+                                   std::string maskFilename = std::filesystem::path(maskPath).filename();
+                                   return maskFilename == expectedMask1 || maskFilename == expectedMask2;
                                });
 
         if (it == masks.end())
         {
-            std::cerr << "Mask for image " << imagePath << " not found. Expected: "
-                      << expectedMask << std::endl;
+            std::cerr << "Mask for image " << imagePath << " not found" << std::endl;
             return false; // If the mask isn't found, return false
         }
     }

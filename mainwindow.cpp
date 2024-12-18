@@ -1167,8 +1167,8 @@ void MainWindow::onStartTrainingClicked()
         std::vector<std::string> selectedMasks = FileUtils::getImageFiles(m_modelMasksPickerFcb->get_filename(), true);
 
         bool isInputDatasetValid = selectedImages.size() == selectedMasks.size() &&
-           FileUtils::checkImagesDimensions(selectedImages, patchSize, patchSize) &&
-           FileUtils::checkImagesDimensions(selectedMasks, patchSize, patchSize) &&
+           FileUtils::checkImagesAspectRatios(selectedImages, patchSize, patchSize) &&
+           FileUtils::checkImagesAspectRatios(selectedMasks, patchSize, patchSize) &&
            FileUtils::checkImagesHaveMasks(selectedImages, selectedMasks);
 
         if (!isInputDatasetValid)

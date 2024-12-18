@@ -25,7 +25,7 @@ public:
     static bool directoryExists(const std::string& parent, const std::string& sub);
     static bool createFile(const std::string& path);
     static bool createSubdirectory(const std::string& parent, const std::string& sub);
-    static bool checkImagesDimensions(std::vector<std::string> images, int width, int height);
+    static bool checkImagesAspectRatios(const std::vector<std::string> &images, int targetWidth, int targetHeight);
     static bool checkImagesHaveMasks(std::vector<std::string> images, std::vector<std::string> masks);
     static bool createTrainingDatasetDirs(const std::string &destination, std::filesystem::path &trainImagesPath, std::filesystem::path &trainMasksPath, std::filesystem::path &valImagesPath, std::filesystem::path &valMasksPath, std::filesystem::path &testImagesPath, std::filesystem::path &testMasksPath);
     static bool splitAndCopyImagesAndMasks(std::vector<std::string> images, std::vector<std::string> masks, const std::string& destination, double trainRatio, double valRatio, double testRatio);

@@ -3,29 +3,7 @@ import argparse
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
-def augment_image(image, mask):
-    # Random horizontal flip
-    image = tf.image.random_flip_left_right(image)
-    mask = tf.image.random_flip_left_right(mask)
-
-    # Random vertical flip
-    image = tf.image.random_flip_up_down(image)
-    mask = tf.image.random_flip_up_down(mask)
-
-    # Random brightness
-    image = tf.image.random_brightness(image, max_delta=0.1)
-
-    # Random contrast
-    image = tf.image.random_contrast(image, lower=0.9, upper=1.1)
-
-    # Randomly rotate by 0, 90, 180, or 270 degrees
-    k = tf.random.uniform([], minval=0, maxval=4, dtype=tf.int32)
-    image = tf.image.rot90(image, k=k)
-    mask = tf.image.rot90(mask, k=k)
-
-    return image, mask
-
-def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8, normalize=True, augment=False):
+def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_size=8, normalize=True):
     # Load images
     image_dataset = tf.keras.utils.image_dataset_from_directory(
         image_dir,
@@ -48,10 +26,6 @@ def load_images_and_masks(image_dir, mask_dir, target_size=(256, 256), batch_siz
 
     # Pair images with their masks
     dataset = tf.data.Dataset.zip((image_dataset, mask_dataset))
-
-    # Augment the dataset
-    if augment:
-        dataset = dataset.map(augment_image)
 
     for img_batch, mask_batch in dataset.take(1):
         print("Before Normalization:")
